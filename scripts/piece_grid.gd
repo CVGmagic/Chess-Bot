@@ -13,7 +13,8 @@ func _process(delta: float) -> void:
 
 var pieces: Array[Array] = []
 
-func generate_pieces(board: Array[Array], piece_map: Dictionary[int, String], board_width: int=560):
+
+func generate_pieces(board: Array[Array], piece_map: Dictionary[int, String], board_width: int=560, board_height: int = 560):
 	var num_rows: int = board.size()
 	var num_columns: int = board[0].size()
 	
@@ -35,7 +36,7 @@ func generate_pieces(board: Array[Array], piece_map: Dictionary[int, String], bo
 			
 			# Force each square to be a uniform square size (e.g., 70x70 pixels)
 			var square_width: int = floor(board_width / num_columns)
-			var square_height: int = floor(board_width / num_rows)
+			var square_height: int = floor(board_height / num_rows)
 			
 			var file_path: String = "res://assets/pieces/" + piece_map[board[rank][file]] + ".svg"
 			piece.texture = load(file_path)
@@ -49,6 +50,20 @@ func generate_pieces(board: Array[Array], piece_map: Dictionary[int, String], bo
 			add_child(piece)
 
 
-func move_piece(cur_square: Vector2i, target_square: Vector2i):
-	pieces[target_square.x][target_square.y] = pieces[cur_square.x][cur_square.y]
-	pieces[cur_square.x][cur_square.y]
+func move_piece(cur_square: Vector2i, target_square: Vector2i, square_width: int=70, square_height: int = 70):
+	var piece: Sprite2D = pieces[cur_square.x][cur_square.y]
+	if piece == null:
+		return
+	
+	var captured_piece: Sprite2D = pieces[target_square.x][target_square.y]
+	if captured_piece != null:
+		captured_piece.queue_free()
+		
+	pieces[target_square.x][target_square.y] = piece
+	
+	square_width
+	piece.position = Vector2(target_square.y * square_height + square_height / 2, target_square.x * square_width + square_width / 2)
+	
+	pieces[cur_square.x][cur_square.y] = null
+	print("Moved piece (" + str(cur_square.x) + "," + str(cur_square.y) + ") to (" + str(target_square.x) + "," + str(target_square.y) + ")")
+	

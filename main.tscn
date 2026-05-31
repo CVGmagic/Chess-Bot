@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3 uid="uid://kfljyq0s17jm"]
+[gd_scene load_steps=7 format=3 uid="uid://kfljyq0s17jm"]
 
 [ext_resource type="Script" uid="uid://dlibwe4hy2djm" path="res://scripts/chess_board.gd" id="1_h2yge"]
 [ext_resource type="Script" uid="uid://m6jjr5pphpdq" path="res://scripts/board_grid.gd" id="1_ig7tw"]
 [ext_resource type="Script" uid="uid://2e8cdisi2xiu" path="res://scripts/piece_manager.gd" id="3_1bvp3"]
 [ext_resource type="Script" uid="uid://dlgi2dvcs2mlr" path="res://scripts/piece_grid.gd" id="3_lquwl"]
 [ext_resource type="Script" uid="uid://ddmbsbwnrk0uf" path="res://scripts/theme_manager.gd" id="4_1bvp3"]
+[ext_resource type="Script" uid="uid://byrehtgrcvsmm" path="res://notation_manager.gd" id="6_7mycd"]
 
 [node name="Main" type="Node2D"]
 
@@ -34,7 +35,11 @@ offset_bottom = 40.0
 script = ExtResource("3_lquwl")
 
 [node name="PieceManager" type="Node2D" parent="."]
+unique_name_in_owner = true
 script = ExtResource("3_1bvp3")
 
 [node name="ThemeManager" type="Node2D" parent="."]
 script = ExtResource("4_1bvp3")
+
+[node name="NotationManager" type="Node2D" parent="."]
+script = ExtResource("6_7mycd")
