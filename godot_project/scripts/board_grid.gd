@@ -39,7 +39,7 @@ func generate_visual_board(num_columns=8, num_rows=8, white_square_color=Color("
 			var file_letter = ["a","b","c","d","e","f","g","h"][file]
 			var rank_number = str(num_rows - rank)
 			square.name = file_letter + rank_number
-			square.pressed.connect(func(): chess_board._on_square_clicked(rank, file))
+			square.pressed.connect(func(): chess_board._on_square_clicked(7 - rank, file))
 			
 			# Add the square to our GridContainer
 			add_child(square)

@@ -4,15 +4,16 @@ extends Control
 @onready var piece_grid: GridContainer = %PieceGrid
 @onready var piece_manager: Node2D = %PieceManager
 
-var board: Array[Array] = [[10, 8, 9, 11, 12, 9, 8, 10],
-									[7, 7, 7, 7, 7, 7, 7, 7],
-									[0, 0, 0, 0, 0, 0, 0, 0],
-									[0, 0, 0, 0, 0, 0, 0, 0],
-									[0, 0, 0, 0, 0, 0, 0, 0],
-									[0, 0, 0, 0, 0, 0, 0, 0],
-									[1, 1, 1, 1, 1, 1, 1, 1],
-									[4, 2, 3, 5, 6, 3, 2, 4]]
+var board: Array[Array] = [[4, 2, 3, 5, 6, 3, 2, 4],
+							[1, 1, 1, 1, 1, 1, 1, 1],
+							[0, 0, 0, 0, 0, 0, 0, 0],
+							[0, 0, 0, 0, 0, 0, 0, 0],
+							[0, 0, 0, 0, 0, 0, 0, 0],
+							[0, 0, 0, 0, 0, 0, 0, 0],
+							[7, 7, 7, 7, 7, 7, 7, 7],
+							[10, 8, 9, 11, 12, 9, 8, 10]]
 
+# Coordinates correspond to (rank, file)
 
 func _ready() -> void:
 	piece_grid.generate_pieces(board, piece_manager.piece_map)
