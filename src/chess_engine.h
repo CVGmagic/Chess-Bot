@@ -7,7 +7,7 @@
 #include <intrin.h>
 #include <cstdint>
 
-// Compile with
+// Compile with:
 // scons platform=windows target=template_debug
 
 namespace godot {
@@ -22,7 +22,17 @@ struct Board {
     inline bool get_bit(uint64_t bitboard, int square) const { return (bitboard & (1ULL << square)) != 0; }
     inline void clear_bit(uint64_t &bitboard, int square) { bitboard &= ~(1ULL << square); }
     
-    // Updates the composite white, black, and total occupancy bitboards
+    void clear() {
+        for (int color = 0; color < 2; ++color) {
+            for (int piece = 0; piece < 6; ++piece) {
+                bitboards[color][piece] = 0ULL;
+            }
+        }
+
+        side_to_move = 0;
+        en_passant_square = -1;
+        castling_rights = 0;
+    }
 };
 
 
@@ -38,6 +48,7 @@ enum Square {
 };
 
 enum GodotPieces{
+    EMPTY,
     WHITE_PAWN,
     WHITE_KNIGHT,
     WHITE_BISHOP,

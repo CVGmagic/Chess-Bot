@@ -14,7 +14,18 @@ env = SConscript("godot-cpp/SConstruct")
 env.Append(CPPPATH=["src"])
 
 # Gather all C++ source files inside your src directory
+"""
 sources = Glob("src/*.cpp")
+
+# Exclude magic_number_generator from compilation
+target_to_remove = os.path.normpath("src/magic_number_generator.cpp")
+sources.remove(target_to_remove)
+"""
+sources = [
+    "src/register_types.cpp",
+    "src/chess_engine.cpp",
+    "src/movegen.cpp"
+]
 
 # Construct the path using Godot's suffix AND SCons's native shared library extension (.dll)
 target_path = "godot_project/bin/libchess" + env["suffix"] + env["SHLIBSUFFIX"]

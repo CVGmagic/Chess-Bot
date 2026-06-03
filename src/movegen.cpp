@@ -166,8 +166,8 @@ const int rook_table_bits[64] = {
 Magic RookDatabase[64];
 Magic BishopDatabase[64];
 
-// Das finale, flache Array für alle Züge (87.312 Einträge)
-uint64_t GiantAttackStorage[87312];
+// Das finale, flache Array für alle Züge (107'648 Einträge)
+uint64_t GiantAttackStorage[107648];
 
 uint64_t mask_rook(int square) {
     uint64_t mask = 0ULL;

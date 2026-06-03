@@ -26,7 +26,8 @@ ChessEngine::~ChessEngine() {
 
 // 3. MUST have ChessEngine:: right here!
 void ChessEngine::_bind_methods() {
-    ClassDB::bind_method(D_METHOD("get_test_value"), &ChessEngine::get_test_value);
+    ClassDB::bind_method(D_METHOD("get_random_legal_move"), &ChessEngine::get_random_legal_move);
+    ClassDB::bind_method(D_METHOD("set_board_from_array"), &ChessEngine::set_board_from_array);
 }
 
 
@@ -179,6 +180,8 @@ void ChessEngine::generate_pseudo_legal_moves(std::vector<Move>& move_list) {
 
 void ChessEngine::set_board_from_array(const PackedInt32Array &setup_board_array) {
     
+    board.clear();
+
     if (setup_board_array.size() != 64) {
         UtilityFunctions::printerr("ChessEngine Error: Board array must contain exactly 64 elements!");
         return;
