@@ -3,6 +3,7 @@
 
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/packed_int32_array.hpp>
+#include <godot_cpp/variant/utility_functions.hpp>
 #include <vector>
 #include <intrin.h>
 #include <cstdint>
@@ -10,30 +11,8 @@
 // Compile with:
 // scons platform=windows target=template_debug
 
+
 namespace godot {
-
-struct Board {
-    uint64_t bitboards[2][6] = {0};
-    int side_to_move = 0;          // 0 = White, 1 = Black
-    int en_passant_square = -1;    // -1 = None
-    uint8_t castling_rights = 0;   
-
-    inline void set_bit(uint64_t &bitboard, int square) { bitboard |= (1ULL << square); }
-    inline bool get_bit(uint64_t bitboard, int square) const { return (bitboard & (1ULL << square)) != 0; }
-    inline void clear_bit(uint64_t &bitboard, int square) { bitboard &= ~(1ULL << square); }
-    
-    void clear() {
-        for (int color = 0; color < 2; ++color) {
-            for (int piece = 0; piece < 6; ++piece) {
-                bitboards[color][piece] = 0ULL;
-            }
-        }
-
-        side_to_move = 0;
-        en_passant_square = -1;
-        castling_rights = 0;
-    }
-};
 
 
 enum Square {
@@ -48,7 +27,7 @@ enum Square {
 };
 
 enum GodotPieces{
-    EMPTY,
+    EMPTY_PIECE,
     WHITE_PAWN,
     WHITE_KNIGHT,
     WHITE_BISHOP,
@@ -65,7 +44,7 @@ enum GodotPieces{
 
 enum PieceType { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, NONE };
 
-enum Player { WHITE, BLACK };
+enum Player { WHITE, BLACK, BOTH, NEITHER, USABLE};
 
 enum MoveFlag {
     // Quiet Moves
@@ -121,11 +100,132 @@ struct Move {
     }
 
     // Helper to get the piece type for promotions if is_promotion() is true.
-    // Maps perfectly back to piece types: Knight (0), Bishop (1), Rook (2), Queen (3)
+    // Maps perfectly back to piece types: Knight (1), Bishop (2), Rook (3), Queen (4)
     inline int get_promo_piece_type() const {
         return get_flag() & 0x3; 
     }
+
+    inline bool is_double_pawn_push() const {return (data & 0xF000) == FLAG_DOUBLE_PAWN_PUSH << 12;}
+
+    inline bool is_en_passant() const {return (data & 0xF000) == FLAG_EN_PASSANT << 12;}
 };
+
+
+struct Board {
+    uint64_t bitboards[2][6] = {0};
+    int side_to_move = 0;          // 0 = White, 1 = Black
+    int en_passant_square = -1;    // -1 = None
+    uint8_t castling_rights = 0;   
+
+    uint64_t occupancy[5] = {0}; // 0 = White, 1 = Black, 2 = Both, 3 = Empty, 4 = Friendly
+
+    inline void set_bit(uint64_t &bitboard, int square) { bitboard |= (1ULL << square); }
+    inline bool get_bit(uint64_t bitboard, int square) const { return (bitboard & (1ULL << square)) != 0; }
+    inline void clear_bit(uint64_t &bitboard, int square) { bitboard &= ~(1ULL << square); }
+    
+    void clear() {
+        for (int color = 0; color < 2; ++color) {
+            for (int piece = 0; piece < 6; ++piece) {
+                bitboards[color][piece] = 0ULL;
+            }
+        }
+
+        side_to_move = 0;
+        en_passant_square = -1;
+        castling_rights = 0;
+        for (int i = 0; i < 5; ++i) {
+            occupancy[i] = 0ULL;
+        }
+    }
+
+    void make_move(Move move) {
+        int us = side_to_move;
+        int them = us ^ 1;
+
+        int from_sq = move.get_from();
+        int to_sq = move.get_to();
+
+        uint64_t from_mask = 1ULL << from_sq;
+        uint64_t to_mask = 1ULL << to_sq;
+        uint64_t move_mask = from_mask | to_mask;
+
+        int piece = -1;
+        for (int p = 0; p < 6; p++) {
+            if (bitboards[us][p] & from_mask) {
+                piece = p;
+                break;
+            }
+        }
+
+        if (piece == -1) {
+            UtilityFunctions::push_error("Invalid piece type encountered when trying to make a move");
+            return;
+        }
+
+        // Remove captured pieces 
+        if (move.is_capture()) {
+            for (int p = 0; p < 6; p++) {
+                if (bitboards[them][p] & to_mask) {
+                    bitboards[them][p] ^= to_mask;
+                }
+            }
+        }
+
+        // Remove moved piece from original location
+        bitboards[us][piece] ^= from_mask;
+        // Place piece at new location
+        if (move.is_promotion()) {
+            int promo_piece = move.get_promo_piece_type();
+            bitboards[us][promo_piece] |= to_mask;
+        } else {
+            bitboards[us][piece] |= to_mask;
+        }
+
+        // Handle en passant
+        if (move.is_en_passant()) {
+            int ep_captured_sq = (us == WHITE) ? (to_sq - 8) : (to_sq + 8);
+            uint64_t ep_mask = 1ULL << ep_captured_sq;
+            bitboards[them][PAWN] ^= ep_mask;
+        }
+
+        // Handle double pawn push
+        if (move.is_double_pawn_push()) {
+            en_passant_square = (us == WHITE) ? (from_sq + 8) : (from_sq - 8);
+        } else {
+            en_passant_square = -1;
+        }
+
+        // Handle castling
+        if (piece == KING && abs(to_sq - from_sq) == 2) {
+        if (us == WHITE) {
+            if (to_sq == G1)      { bitboards[WHITE][ROOK] ^= (1ULL << H1) | (1ULL << F1); } // Short
+            else if (to_sq == C1) { bitboards[WHITE][ROOK] ^= (1ULL << A1) | (1ULL << D1); } // Long
+        } else { // us == BLACK
+            if (to_sq == G8)      { bitboards[BLACK][ROOK] ^= (1ULL << H8) | (1ULL << F8); } // Short
+            else if (to_sq == C8) { bitboards[BLACK][ROOK] ^= (1ULL << A8) | (1ULL << D8); } // Long
+        }
+}
+
+        // Rebuild occupancy
+        occupancy[WHITE] = 0ULL;
+        occupancy[BLACK] = 0ULL;
+        occupancy[BOTH] = 0ULL;
+        occupancy[NEITHER] = 0ULL;
+        occupancy[USABLE] = 0ULL;
+        for (int p = 0; p < 6; p++) {
+            occupancy[WHITE] |= bitboards[WHITE][p];
+            occupancy[BLACK] |= bitboards[BLACK][p];
+        }
+        occupancy[BOTH] = occupancy[WHITE] | occupancy[BLACK];
+        occupancy[NEITHER] = ~occupancy[BOTH];
+
+        // Change current player
+        side_to_move ^= 1;
+        occupancy[USABLE] = ~occupancy[side_to_move];
+    }
+};
+
+
 
 
 class ChessEngine : public RefCounted {
@@ -148,9 +248,17 @@ private:
         #endif
     }
 
-    void generate_pseudo_legal_moves(std::vector<Move>& move_list);
+    void generate_pseudo_legal_moves(const Board& board, std::vector<Move>& move_list);
+
+    void generate_legal_moves(const Board& board, std::vector<Move>& move_list);
+
+    bool is_square_attacked(const Board& board, int square, int enemy_color);
+
+    bool is_in_check(const Board& board, int color);
+
 
     Board board;
+
 protected:
     static void _bind_methods(); // Exposes C++ functions to GDScript
 
@@ -158,13 +266,14 @@ public:
     ChessEngine();
     ~ChessEngine();
 
-    int get_test_value() const;
 
-    void set_board_from_array(const PackedInt32Array &setup_board_array);
+    void set_board_from_array(const PackedInt32Array& setup_board_array, int32_t side_to_move, int32_t castling_rights);
+
+    int get_random_pseudo_legal_move();
 
     int get_random_legal_move();
 
-    
+    bool try_move(int32_t from_rank, int32_t from_file, int32_t to_rank, int32_t to_file, int32_t promo_choice);
 };
 
 }

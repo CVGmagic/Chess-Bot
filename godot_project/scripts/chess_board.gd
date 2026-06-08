@@ -42,7 +42,11 @@ func _on_square_clicked(rank, file) -> void:
 	
 		
 func make_move(from_rank: int, from_file: int, to_rank: int, to_file: int) -> void:
-	# TODO Add legality check
+	var success: bool = engine_manager.try_move(from_rank, from_file, to_rank, to_file)
+	
+	if !success:
+		return
+	
 	piece_grid.move_piece(Vector2i(from_rank, from_file), Vector2i(to_rank, to_file))
 	
 	board[to_rank][to_file] = board[from_rank][from_file]
@@ -51,5 +55,4 @@ func make_move(from_rank: int, from_file: int, to_rank: int, to_file: int) -> vo
 	current_player = 1 - current_player
 	
 	if current_player == 0:
-		engine_manager.set_engine_board(board)
 		engine_manager.make_random_engine_move()

@@ -114,8 +114,6 @@ inline uint64_t get_bishop_attacks(int square, uint64_t total_occupancy, uint64_
     uint64_t index = (blockers * BishopDatabase[square].magic) >> BishopDatabase[square].shift;
 
     return BishopDatabase[square].attacks[index] & not_friendly_pieces;
-
-
 }
 
 inline uint64_t get_queen_attacks(int square, uint64_t total_occupancy, uint64_t not_friendly_pieces) {

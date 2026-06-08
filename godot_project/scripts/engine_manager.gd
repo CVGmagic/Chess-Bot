@@ -12,9 +12,9 @@ func _ready() -> void:
 	set_engine_board(chess_board.board)
 	print("Board initialised successfully")
 	
-	for i in range(1):
-		var move: Array[int] = decode_move(chess_engine.get_random_legal_move())
-		chess_board.make_move(move[0], move[1], move[2], move[3])
+	set_engine_board(chess_board.board)
+	var move: Array[int] = decode_move(chess_engine.get_random_legal_move())
+	chess_board.make_move(move[0], move[1], move[2], move[3])
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
@@ -35,9 +35,15 @@ func set_engine_board(board: Array[Array]) -> void:
 		for file in range(8):
 			flat_array[rank * 8 + file] = board[rank][file]
 	
-	chess_engine.set_board_from_array(flat_array)
+	chess_engine.set_board_from_array(flat_array, 0, -1)
 
 
+func try_move(from_rank: int, from_file: int, to_rank: int, to_file: int) -> bool:
+	var success: bool = chess_engine.try_move(from_rank, from_file, to_rank, to_file, 4)
+	# promo choice set to 4 (queen) by default
+	return success
+	
+	
 func decode_move(move: int) -> Array[int]:
 	var from_sq_num: int = move & 63
 	var to_sq_num: int = (move >> 6) & 63
