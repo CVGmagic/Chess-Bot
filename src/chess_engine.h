@@ -14,7 +14,7 @@
 
 namespace godot {
 
-static const uint8_t castling_rights_update[64] = { // Allows fast catling rights updates
+static const uint8_t castling_rights_update[64] = { // Allows fast castling rights updates
     13, 15, 15, 15, 12, 15, 15, 14,  // Row 1
     15, 15, 15, 15, 15, 15, 15, 15,
     15, 15, 15, 15, 15, 15, 15, 15,
@@ -24,6 +24,8 @@ static const uint8_t castling_rights_update[64] = { // Allows fast catling right
     15, 15, 15, 15, 15, 15, 15, 15,
      7, 15, 15, 15,  3, 15, 15, 11   // Row 8
 };
+
+static const int piece_values[6] = {100, 300, 320, 500, 900, 10000};
 
 
 enum Square {
@@ -96,6 +98,7 @@ struct Move {
     inline int get_from() const { return data & 0x3F; }        // Mask: 00111111
     inline int get_to()   const { return (data >> 6) & 0x3F; } // Mask: 00111111
     inline int get_flag() const { return (data >> 12) & 0x0F; }// Mask: 00001111
+    // TODO Can probably be optimized by removing the &
 
     // State Checks
     inline bool is_none() const { return data == 0; }
@@ -129,6 +132,8 @@ struct Board {
     uint8_t castling_rights = 0b0000; // No castling allowed initially
 
     uint64_t occupancy[5] = {0}; // 0 = White, 1 = Black, 2 = Both, 3 = Empty, 4 = Friendly
+
+    int material = 0;
 
     inline void set_bit(uint64_t &bitboard, int square) { bitboard |= (1ULL << square); }
     inline bool get_bit(uint64_t bitboard, int square) const { return (bitboard & (1ULL << square)) != 0; }
@@ -178,6 +183,7 @@ struct Board {
             for (int p = 0; p < 6; p++) {
                 if (bitboards[them][p] & to_mask) {
                     bitboards[them][p] ^= to_mask;
+                    (us == WHITE) ? material += piece_values[p] : material -= piece_values[p];
                 }
             }
         }
@@ -197,6 +203,7 @@ struct Board {
             int ep_captured_sq = (us == WHITE) ? (to_sq - 8) : (to_sq + 8);
             uint64_t ep_mask = 1ULL << ep_captured_sq;
             bitboards[them][PAWN] ^= ep_mask;
+            (us == WHITE) ? material += piece_values[PAWN] : material -= piece_values[PAWN];
         }
 
         // Handle double pawn push
@@ -273,6 +280,11 @@ private:
 
     int32_t perft_rec(const Board& board, int32_t depth);
 
+    int evaluate(const Board& board);
+
+    int minmax(const Board& board, int depth);
+
+    int alpha_beta(const Board& board, int depth, int alpha, int beta);
 
     Board board;
 
@@ -290,9 +302,11 @@ public:
 
     int get_random_legal_move();
 
-    bool try_move(int32_t from_rank, int32_t from_file, int32_t to_rank, int32_t to_file, int32_t promo_choice);
+    int32_t try_move(int32_t from_rank, int32_t from_file, int32_t to_rank, int32_t to_file, int32_t promo_choice);
 
     int32_t perft(int32_t depth) {return perft_rec(board, depth);};
+
+    int make_best_move(int depth);
 };
 
 }

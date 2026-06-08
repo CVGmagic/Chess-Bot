@@ -30,6 +30,7 @@ void ChessEngine::_bind_methods() {
     ClassDB::bind_method(D_METHOD("set_board_from_array", "setup_board_array", "side_to_move", "castling_rights"), &ChessEngine::set_board_from_array);
     ClassDB::bind_method(D_METHOD("try_move", "from_rank", "from_file", "to_rank", "to_file", "promo_choice"), &ChessEngine::try_move);
     ClassDB::bind_method(D_METHOD("perft", "depth"), &ChessEngine::perft);
+    ClassDB::bind_method(D_METHOD("make_best_move", "depth"), &ChessEngine::make_best_move);
 }
 
 
@@ -221,52 +222,64 @@ void ChessEngine::set_board_from_array(const PackedInt32Array &setup_board_array
         
         if (piece == WHITE_PAWN) {
             board.set_bit(board.bitboards[WHITE][PAWN], i);
+            board.material += piece_values[PAWN];
             continue;
         }
         if (piece == WHITE_KNIGHT) {
             board.set_bit(board.bitboards[WHITE][KNIGHT], i);
+            board.material += piece_values[KNIGHT];
             continue;
         }
         if (piece == WHITE_BISHOP) {
             board.set_bit(board.bitboards[WHITE][BISHOP], i);
+            board.material += piece_values[BISHOP];
             continue;
         }
         if (piece == WHITE_ROOK) {
             board.set_bit(board.bitboards[WHITE][ROOK], i);
+            board.material += piece_values[ROOK];
             continue;
         }
         if (piece == WHITE_QUEEN) {
             board.set_bit(board.bitboards[WHITE][QUEEN], i);
+            board.material += piece_values[QUEEN];
             continue;
         }
         if (piece == WHITE_KING) {
             board.set_bit(board.bitboards[WHITE][KING], i);
+            board.material += piece_values[KING];
             continue;
         }
 
 
         if (piece == BLACK_PAWN) {
             board.set_bit(board.bitboards[BLACK][PAWN], i);
+            board.material -= piece_values[PAWN];
             continue;
         }
         if (piece == BLACK_KNIGHT) {
             board.set_bit(board.bitboards[BLACK][KNIGHT], i);
+            board.material -= piece_values[KNIGHT];
             continue;
         }
         if (piece == BLACK_BISHOP) {
             board.set_bit(board.bitboards[BLACK][BISHOP], i);
+            board.material -= piece_values[BISHOP];
             continue;
         }
         if (piece == BLACK_ROOK) {
             board.set_bit(board.bitboards[BLACK][ROOK], i);
+            board.material -= piece_values[ROOK];
             continue;
         }
         if (piece == BLACK_QUEEN) {
             board.set_bit(board.bitboards[BLACK][QUEEN], i);
+            board.material -= piece_values[QUEEN];
             continue;
         }
         if (piece == BLACK_KING) {
             board.set_bit(board.bitboards[BLACK][KING], i);
+            board.material -= piece_values[KING];
             continue;
         }
     }
@@ -383,13 +396,12 @@ void ChessEngine::generate_legal_moves(const Board& board, std::vector<Move>& mo
 }
 
 
-bool ChessEngine::try_move(int32_t from_rank, int32_t from_file, int32_t to_rank, int32_t to_file, int32_t promo_choice) {
+int32_t ChessEngine::try_move(int32_t from_rank, int32_t from_file, int32_t to_rank, int32_t to_file, int32_t promo_choice) {
     int from_sq = from_rank * 8 + from_file % 8;
     int to_sq = to_rank * 8 + to_file % 8;
 
     std::vector<Move> legal_moves;
     generate_legal_moves(board, legal_moves);
-
 
     for (const Move& move : legal_moves) {
         if (move.get_from() == from_sq && move.get_to() == to_sq) {
@@ -397,16 +409,16 @@ bool ChessEngine::try_move(int32_t from_rank, int32_t from_file, int32_t to_rank
             if (move.is_promotion()) {
                 if (move.get_promo_piece_type() == promo_choice) {
                     board.make_move(move);
-                    return true;
+                    return move.data;
                 }
                 continue;
             }
             
             board.make_move(move);
-            return true;
+            return move.data;
         }
     }
-    return false;
+    return 0;
 }
 
 
@@ -428,6 +440,79 @@ int32_t ChessEngine::perft_rec(const Board& board, int32_t depth) {
     }
 
     return nodes;
+}
+
+
+int ChessEngine::evaluate(const Board& board) {
+    if (board.side_to_move == WHITE) {
+        return board.material;
+    } else {
+        return -board.material;
+    }
+}
+
+
+int ChessEngine::minmax(const Board& board, int depth) {
+    // Returns the evaluation of the outcome if both sides play perfectly for depth moves
+    if (depth == 0) {
+        return evaluate(board);
+    }
+
+    std::vector<Move> legal_moves;
+    generate_legal_moves(board, legal_moves);
+
+    if (legal_moves.empty()) {
+        if (is_in_check(board, board.side_to_move)) { // Checkmate
+            return -29000;
+        }
+        return 0; // Stalemate
+    }
+
+    int max_score = -999999;
+    for (const Move& move : legal_moves) {
+        Board simulated_board = board;
+        simulated_board.make_move(move);
+
+        int score = -minmax(simulated_board, depth - 1);
+        if (score > max_score) {
+            max_score = score;
+        }
+    }
+    return max_score;
+}
+
+
+int ChessEngine::alpha_beta(const Board& board, int depth, int alpha, int beta) {
+    return 0;
+}
+
+
+int ChessEngine::make_best_move(int depth) {
+    // Plays the best move and returns its raw data
+    std::vector<Move> legal_moves;
+    generate_legal_moves(board, legal_moves);
+
+    if (legal_moves.empty()) {
+        return 0;
+    }
+
+    Move best_move;
+    int best_score = -999999;
+
+    for (const Move& move : legal_moves) {
+        Board simulated_board = board;
+        simulated_board.make_move(move);
+
+        int score = -minmax(simulated_board, depth - 1);
+        if (score > best_score) {
+            best_move = move;
+            best_score = score;
+        }
+    }
+
+    board.make_move(best_move);
+
+    return best_move.data;
 }
 
 

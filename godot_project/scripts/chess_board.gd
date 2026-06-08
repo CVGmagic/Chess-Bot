@@ -5,6 +5,11 @@ extends Control
 @onready var piece_manager: Node2D = %PieceManager
 @onready var engine_manager: Node = %EngineManager
 
+const FLAG_KING_CASTLE = 2
+const FLAG_QUEEN_CASTLE = 3
+const FLAG_EN_PASSANT = 5
+const FLAG_PROMOTION = 8
+
 var current_player: = 0 # White
 
 var board: Array[Array] = [[4, 2, 3, 5, 6, 3, 2, 4],
@@ -45,22 +50,78 @@ func _on_square_clicked(rank, file) -> void:
 		return
 	
 	# Select second square
-	make_move(prev_selected_square.x, prev_selected_square.y, selected_square.x, selected_square.y)
+	make_move(prev_selected_square.x, prev_selected_square.y, selected_square.x, selected_square.y, 0)
 	prev_selected_square = default_square
 	
 		
-func make_move(from_rank: int, from_file: int, to_rank: int, to_file: int) -> void:
-	var success: bool = engine_manager.try_move(from_rank, from_file, to_rank, to_file)
-	
-	if !success:
+func make_move(from_rank: int, from_file: int, to_rank: int, to_file: int, flag: int) -> void:
+	if current_player == 0: # Engine's turn
+		update_piece(Vector2i(from_rank, from_file), Vector2i(to_rank, to_file))
+		
+		# Only works for white
+		if flag == FLAG_KING_CASTLE:
+			update_piece(Vector2i(0, 7), Vector2i(0, 5))
+		elif flag == FLAG_QUEEN_CASTLE:
+			update_piece(Vector2i(0, 0), Vector2i(0, 3))
+		elif flag == FLAG_EN_PASSANT:
+			piece_grid.pieces[to_rank - 1][to_file].queue_free()
+			board[to_rank - 1][to_file] = 0
+		elif flag >= 8: # Promotion
+			if flag == 0x8 or flag == 0xC: # Knight
+				piece_grid.pieces[to_rank][to_file].texture = load("res://assets/pieces/Knight White.svg")
+			elif flag == 0x9 or flag == 0xD: # Bishop
+				piece_grid.pieces[to_rank][to_file].texture = load("res://assets/pieces/Bishop White.svg")
+			elif flag == 0xA or flag == 0xE: # Rook
+				piece_grid.pieces[to_rank][to_file].texture = load("res://assets/pieces/Rook White.svg")
+			elif flag == 0xB or flag == 0xF: # Queen
+				piece_grid.pieces[to_rank][to_file].texture = load("res://assets/pieces/Queen White.svg")
+			else:
+				printerr("Invalid Promotion Type encountered")
+			
+		current_player = 1 - current_player
 		return
 	
-	piece_grid.move_piece(Vector2i(from_rank, from_file), Vector2i(to_rank, to_file))
+	else: # Players turn
+		var data: int = engine_manager.try_move(from_rank, from_file, to_rank, to_file)
+		
+		if data == 0:
+			return
+		
+		print(data)
+		flag = (data >> 12) # Redefine the parameter 'flag'
+
+		update_piece(Vector2i(from_rank, from_file), Vector2i(to_rank, to_file))
+		
+		# Only works for black
+		if flag == FLAG_KING_CASTLE:
+			update_piece(Vector2i(7, 7), Vector2i(7, 5))
+		elif flag == FLAG_QUEEN_CASTLE:
+			update_piece(Vector2i(7, 0), Vector2i(7, 3))
+		elif flag == FLAG_EN_PASSANT:
+			piece_grid.pieces[to_rank + 1][to_file].queue_free()
+			piece_grid.pieces[to_rank + 1][to_file] = null
+			board[to_rank + 1][to_file] = 0
+		elif flag >= 8: # Promotion
+			if flag == 0x8 or flag == 0xC: # Knight
+				piece_grid.pieces[to_rank][to_file].texture = load("res://assets/pieces/Knight Black.svg")
+			elif flag == 0x9 or flag == 0xD: # Bishop
+				piece_grid.pieces[to_rank][to_file].texture = load("res://assets/pieces/Bishop Black.svg")
+			elif flag == 0xA or flag == 0xE: # Rook
+				piece_grid.pieces[to_rank][to_file].texture = load("res://assets/pieces/Rook Black.svg")
+			elif flag == 0xB or flag == 0xF: # Queen
+				piece_grid.pieces[to_rank][to_file].texture = load("res://assets/pieces/Queen Black.svg")
+			else:
+				printerr("Invalid Promotion Type encountered")
+				
+		
+		current_player = 1 - current_player
+		
+		engine_manager.make_best_engine_move()
+
+
+func update_piece(from_sq: Vector2i, to_sq: Vector2i) -> void:
+	piece_grid.move_piece(Vector2i(from_sq.x, from_sq.y), Vector2i(to_sq.x, to_sq.y))
 	
-	board[to_rank][to_file] = board[from_rank][from_file]
-	board[from_rank][from_file] = 0
-	
-	current_player = 1 - current_player
-	
-	if current_player == 0:
-		engine_manager.make_random_engine_move()
+	board[to_sq.x][to_sq.y] = board[from_sq.x][from_sq.y]
+	board[from_sq.x][from_sq.y] = 0
+	return
