@@ -33,12 +33,20 @@ var prev_selected_square: Vector2i = default_square
 
 func _on_square_clicked(rank, file) -> void:
 	var selected_square: Vector2i = Vector2i(rank, file)
-	if prev_selected_square == default_square or selected_square == prev_selected_square:
-		prev_selected_square = selected_square
 	
-	else:
-		make_move(prev_selected_square.x, prev_selected_square.y, selected_square.x, selected_square.y)
+	# Cancel selected square
+	if selected_square == prev_selected_square:
 		prev_selected_square = default_square
+		return
+	
+	# Select first square
+	if prev_selected_square == default_square:
+		prev_selected_square = selected_square
+		return
+	
+	# Select second square
+	make_move(prev_selected_square.x, prev_selected_square.y, selected_square.x, selected_square.y)
+	prev_selected_square = default_square
 	
 		
 func make_move(from_rank: int, from_file: int, to_rank: int, to_file: int) -> void:

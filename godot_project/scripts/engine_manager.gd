@@ -6,13 +6,12 @@ var chess_engine: ChessEngine
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
-	print("Starting initialisation")
 	chess_engine = ChessEngine.new()
-	print("Chess engine created successfully")
 	set_engine_board(chess_board.board)
-	print("Board initialised successfully")
 	
-	set_engine_board(chess_board.board)
+	for i in range(0, 0):
+		print(chess_engine.perft(i))
+	
 	var move: Array[int] = decode_move(chess_engine.get_random_legal_move())
 	chess_board.make_move(move[0], move[1], move[2], move[3])
 
@@ -22,7 +21,11 @@ func _process(delta: float) -> void:
 
 
 func make_random_engine_move() -> void:
-	var move: Array[int] = decode_move(chess_engine.get_random_legal_move())
+	var raw_move: int = chess_engine.get_random_legal_move()
+	if raw_move == 0:
+		print("GAME OVER")
+		
+	var move: Array[int] = decode_move(raw_move)
 	chess_board.make_move(move[0], move[1], move[2], move[3])
 	print("Engine Move: (" + str(move[0]) + "," + str(move[1]) + ") (" + str(move[2]) + "," + str(move[3]) + ")")
 	
@@ -35,7 +38,7 @@ func set_engine_board(board: Array[Array]) -> void:
 		for file in range(8):
 			flat_array[rank * 8 + file] = board[rank][file]
 	
-	chess_engine.set_board_from_array(flat_array, 0, -1)
+	chess_engine.set_board_from_array(flat_array, 0, 15) # 15 is 0b1111, so all castling rights intact
 
 
 func try_move(from_rank: int, from_file: int, to_rank: int, to_file: int) -> bool:

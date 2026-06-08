@@ -14,6 +14,17 @@
 
 namespace godot {
 
+static const uint8_t castling_rights_update[64] = { // Allows fast catling rights updates
+    13, 15, 15, 15, 12, 15, 15, 14,  // Row 1
+    15, 15, 15, 15, 15, 15, 15, 15,
+    15, 15, 15, 15, 15, 15, 15, 15,
+    15, 15, 15, 15, 15, 15, 15, 15,
+    15, 15, 15, 15, 15, 15, 15, 15,
+    15, 15, 15, 15, 15, 15, 15, 15,
+    15, 15, 15, 15, 15, 15, 15, 15,
+     7, 15, 15, 15,  3, 15, 15, 11   // Row 8
+};
+
 
 enum Square {
     A1, B1, C1, D1, E1, F1, G1, H1,
@@ -102,7 +113,7 @@ struct Move {
     // Helper to get the piece type for promotions if is_promotion() is true.
     // Maps perfectly back to piece types: Knight (1), Bishop (2), Rook (3), Queen (4)
     inline int get_promo_piece_type() const {
-        return get_flag() & 0x3; 
+        return (get_flag() & 0x3) + 1; 
     }
 
     inline bool is_double_pawn_push() const {return (data & 0xF000) == FLAG_DOUBLE_PAWN_PUSH << 12;}
@@ -113,9 +124,9 @@ struct Move {
 
 struct Board {
     uint64_t bitboards[2][6] = {0};
-    int side_to_move = 0;          // 0 = White, 1 = Black
-    int en_passant_square = -1;    // -1 = None
-    uint8_t castling_rights = 0;   
+    int side_to_move = 0; // 0 = White, 1 = Black
+    int en_passant_square = -1; // -1 = None
+    uint8_t castling_rights = 0b0000; // No castling allowed initially
 
     uint64_t occupancy[5] = {0}; // 0 = White, 1 = Black, 2 = Both, 3 = Empty, 4 = Friendly
 
@@ -198,13 +209,16 @@ struct Board {
         // Handle castling
         if (piece == KING && abs(to_sq - from_sq) == 2) {
         if (us == WHITE) {
-            if (to_sq == G1)      { bitboards[WHITE][ROOK] ^= (1ULL << H1) | (1ULL << F1); } // Short
-            else if (to_sq == C1) { bitboards[WHITE][ROOK] ^= (1ULL << A1) | (1ULL << D1); } // Long
+            if (to_sq == G1)      { bitboards[WHITE][ROOK] ^= ((1ULL << H1) | (1ULL << F1)); } // Short
+            else if (to_sq == C1) { bitboards[WHITE][ROOK] ^= ((1ULL << A1) | (1ULL << D1)); } // Long
         } else { // us == BLACK
-            if (to_sq == G8)      { bitboards[BLACK][ROOK] ^= (1ULL << H8) | (1ULL << F8); } // Short
-            else if (to_sq == C8) { bitboards[BLACK][ROOK] ^= (1ULL << A8) | (1ULL << D8); } // Long
+            if (to_sq == G8)      { bitboards[BLACK][ROOK] ^= ((1ULL << H8) | (1ULL << F8)); } // Short
+            else if (to_sq == C8) { bitboards[BLACK][ROOK] ^= ((1ULL << A8) | (1ULL << D8)); } // Long
         }
 }
+        // Update castling rights
+        castling_rights &= castling_rights_update[from_sq];
+        castling_rights &= castling_rights_update[to_sq];
 
         // Rebuild occupancy
         occupancy[WHITE] = 0ULL;
@@ -257,6 +271,9 @@ private:
     bool is_in_check(const Board& board, int color);
 
 
+    int32_t perft_rec(const Board& board, int32_t depth);
+
+
     Board board;
 
 protected:
@@ -274,6 +291,8 @@ public:
     int get_random_legal_move();
 
     bool try_move(int32_t from_rank, int32_t from_file, int32_t to_rank, int32_t to_file, int32_t promo_choice);
+
+    int32_t perft(int32_t depth) {return perft_rec(board, depth);};
 };
 
 }

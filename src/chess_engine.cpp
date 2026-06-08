@@ -29,6 +29,7 @@ void ChessEngine::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_random_legal_move"), &ChessEngine::get_random_legal_move);
     ClassDB::bind_method(D_METHOD("set_board_from_array", "setup_board_array", "side_to_move", "castling_rights"), &ChessEngine::set_board_from_array);
     ClassDB::bind_method(D_METHOD("try_move", "from_rank", "from_file", "to_rank", "to_file", "promo_choice"), &ChessEngine::try_move);
+    ClassDB::bind_method(D_METHOD("perft", "depth"), &ChessEngine::perft);
 }
 
 
@@ -169,6 +170,39 @@ void ChessEngine::generate_pseudo_legal_moves(const Board& board, std::vector<Mo
         uint64_t quiet_moves = raw_attacks & board.occupancy[NEITHER];
         while (captures) {move_list.push_back(Move(king_square, pop_lsb(captures), FLAG_CAPTURE));}
         while (quiet_moves) {move_list.push_back(Move(king_square, pop_lsb(quiet_moves), FLAG_QUIET));}
+
+        // Handle castling
+        if (us == WHITE) {
+            if (board.castling_rights & 0b0001) { // O-O
+                if (!board.get_bit(board.occupancy[BOTH], F1) && !board.get_bit(board.occupancy[BOTH], G1)) {
+                    if (!is_square_attacked(board, E1, BLACK) && !is_square_attacked(board, F1, BLACK)) {
+                        move_list.push_back(Move(E1, G1, FLAG_KING_CASTLE));
+                    }
+                }
+            }
+            if (board.castling_rights & 0b0010) { // O-O-O
+                if (!board.get_bit(board.occupancy[BOTH], B1) && !board.get_bit(board.occupancy[BOTH], C1) && !board.get_bit(board.occupancy[BOTH], D1)) {
+                    if (!is_square_attacked(board, D1, BLACK) && !is_square_attacked(board, E1, BLACK)) {
+                        move_list.push_back(Move(E1, C1, FLAG_QUEEN_CASTLE));
+                    }
+                }
+            }
+        } else { // us == BLACK
+            if (board.castling_rights & 0b0100) { // O-O
+                if (!board.get_bit(board.occupancy[BOTH], F8) && !board.get_bit(board.occupancy[BOTH], G8)) {
+                    if (!is_square_attacked(board, E8, WHITE) && !is_square_attacked(board, F8, WHITE)) {
+                        move_list.push_back(Move(E8, G8, FLAG_KING_CASTLE));
+                    }
+                }
+            }
+            if (board.castling_rights & 0b1000) { // O-O-O
+                if (!board.get_bit(board.occupancy[BOTH], B8) && !board.get_bit(board.occupancy[BOTH], C8) && !board.get_bit(board.occupancy[BOTH], D8)) {
+                    if (!is_square_attacked(board, D8, WHITE) && !is_square_attacked(board, E8, WHITE)) {
+                        move_list.push_back(Move(E8, C8, FLAG_QUEEN_CASTLE));
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -373,6 +407,27 @@ bool ChessEngine::try_move(int32_t from_rank, int32_t from_file, int32_t to_rank
         }
     }
     return false;
+}
+
+
+int32_t ChessEngine::perft_rec(const Board& board, int32_t depth) {
+    if (depth == 0) {
+        return 1;
+    }
+
+    std::vector<Move> legal_moves;
+    generate_legal_moves(board, legal_moves);
+
+    int32_t nodes = 0;
+
+    for (const Move& move : legal_moves) {
+        Board simulated_board = board;
+        simulated_board.make_move(move);
+
+        nodes += perft_rec(simulated_board, depth - 1);
+    }
+
+    return nodes;
 }
 
 
