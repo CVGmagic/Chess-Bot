@@ -7,9 +7,6 @@
 
 namespace godot {
 
-
-
-
 ChessEngine::ChessEngine() {
     static bool sliding_lookup_initialised = false;
 

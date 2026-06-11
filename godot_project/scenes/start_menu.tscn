@@ -1,0 +1,77 @@
+[gd_scene load_steps=6 format=3 uid="uid://b6t4i5muxt5mt"]
+
+[ext_resource type="Script" uid="uid://dmfmc32u1b6pd" path="res://scripts/start_menu.gd" id="1_fcv5n"]
+[ext_resource type="Texture2D" uid="uid://00xnfsny0jow" path="res://assets/background_images/King_black_background_2.jpg" id="1_ouf4f"]
+[ext_resource type="FontFile" uid="uid://x38r70q8lyf2" path="res://assets/fonts/Cinzel/static/Cinzel-SemiBold.ttf" id="3_fcv5n"]
+[ext_resource type="FontFile" uid="uid://cs3mnyo1q0i70" path="res://assets/fonts/Cinzel/static/Cinzel-ExtraBold.ttf" id="4_fcv5n"]
+[ext_resource type="PackedScene" uid="uid://bieqxvblkm5f4" path="res://scenes/default_button.tscn" id="4_h61rw"]
+
+[node name="StartMenu" type="Control"]
+layout_mode = 3
+anchor_right = 3.996
+anchor_bottom = 3.793
+offset_left = 87.0
+offset_top = 3.0
+offset_right = -2476.39
+offset_bottom = -1248.86
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_fcv5n")
+
+[node name="BackgroundImage2" type="TextureRect" parent="."]
+modulate = Color(0.454524, 0.454524, 0.454524, 1)
+layout_mode = 0
+offset_left = -140.0
+offset_top = -4.0
+offset_right = 878.0
+offset_bottom = 668.0
+texture = ExtResource("1_ouf4f")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="BackgroundImage" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_top = -0.003
+anchor_right = 0.021
+offset_left = 91.0
+offset_top = -0.381988
+offset_right = 1023.16
+offset_bottom = 647.0
+texture = ExtResource("1_ouf4f")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="RichTextLabel" type="RichTextLabel" parent="."]
+layout_mode = 0
+offset_left = 42.0
+offset_top = 32.0
+offset_right = 688.0
+offset_bottom = 139.0
+theme_override_fonts/normal_font = ExtResource("3_fcv5n")
+theme_override_fonts/mono_font = ExtResource("3_fcv5n")
+theme_override_fonts/italics_font = ExtResource("3_fcv5n")
+theme_override_fonts/bold_italics_font = ExtResource("4_fcv5n")
+theme_override_fonts/bold_font = ExtResource("4_fcv5n")
+theme_override_font_sizes/bold_italics_font_size = 70
+theme_override_font_sizes/italics_font_size = 70
+theme_override_font_sizes/mono_font_size = 70
+theme_override_font_sizes/normal_font_size = 70
+theme_override_font_sizes/bold_font_size = 70
+text = "My Chess Engine"
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 0
+offset_left = 191.0
+offset_top = 221.0
+offset_right = 483.0
+offset_bottom = 441.0
+theme_override_constants/separation = 50
+
+[node name="PlayButton" parent="VBoxContainer" instance=ExtResource("4_h61rw")]
+layout_mode = 2
+text = "Play"
+
+[node name="OptionsButton" parent="VBoxContainer" instance=ExtResource("4_h61rw")]
+layout_mode = 2
+text = "Options"

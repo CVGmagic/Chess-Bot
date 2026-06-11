@@ -247,8 +247,6 @@ struct Board {
 };
 
 
-
-
 class ChessEngine : public RefCounted {
     GDCLASS(ChessEngine, RefCounted); // Hooks this class into Godot's type system
 

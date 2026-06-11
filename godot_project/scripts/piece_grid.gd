@@ -1,6 +1,10 @@
 extends GridContainer
 
 
+
+@onready var ui_manager: Node = %UIManager
+
+
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	pass # Replace with function body.
@@ -42,8 +46,10 @@ func generate_pieces(board: Array[Array], piece_map: Dictionary[int, String], bo
 			piece.texture = load(file_path)
 			
 			# Name the square node by its algebraic notation coordinates for debugging
-			
-			piece.position = Vector2(square_width * file + square_width / 2, square_height * (7 - rank) + square_height / 2)
+			if ui_manager.board_is_flipped:
+				piece.position = Vector2(square_width * (7 - file) + square_width / 2, square_height * (rank) + square_height / 2)
+			else:
+				piece.position = Vector2(square_width * file + square_width / 2, square_height * (7 - rank) + square_height / 2)
 			pieces[rank][file] = piece
 			
 			# Add the square to our GridContainer
@@ -61,7 +67,10 @@ func move_piece(cur_square: Vector2i, target_square: Vector2i, square_width: int
 		
 	pieces[target_square.x][target_square.y] = piece
 	
-	piece.position = Vector2(target_square.y * square_width + square_width / 2, (7 -target_square.x) * square_height + square_height / 2)
+	if ui_manager.board_is_flipped:
+		piece.position = Vector2((7 - target_square.y) * square_width + square_width / 2, (target_square.x) * square_height + square_height / 2)
+	else:
+		piece.position = Vector2(target_square.y * square_width + square_width / 2, (7 - target_square.x) * square_height + square_height / 2)
 	
 	pieces[cur_square.x][cur_square.y] = null
 	print("Moved piece (" + str(cur_square.x) + "," + str(cur_square.y) + ") to (" + str(target_square.x) + "," + str(target_square.y) + ")")

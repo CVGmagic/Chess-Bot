@@ -16,10 +16,6 @@ func _ready() -> void:
 	
 	make_best_engine_move()
 
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta: float) -> void:
-	pass
-
 
 func make_random_engine_move() -> void:
 	var raw_move: int = chess_engine.get_random_legal_move()

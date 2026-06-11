@@ -1,0 +1,43 @@
+[gd_scene load_steps=6 format=3 uid="uid://bieqxvblkm5f4"]
+
+[ext_resource type="FontFile" uid="uid://x38r70q8lyf2" path="res://assets/fonts/Cinzel/static/Cinzel-SemiBold.ttf" id="1_gqh8d"]
+[ext_resource type="StyleBox" uid="uid://cvarwj5d715u5" path="res://styles/style_box_button.tres" id="2_5jl3p"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_h61rw"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_h61rw"]
+content_margin_bottom = 5.0
+bg_color = Color(1, 1, 1, 0.25098)
+border_width_left = 8
+border_width_top = 8
+border_width_right = 8
+border_width_bottom = 8
+border_color = Color(0.314543, 0.649222, 0.760406, 1)
+border_blend = true
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gqh8d"]
+content_margin_bottom = 5.0
+bg_color = Color(1, 1, 1, 0.0862745)
+border_width_left = 8
+border_width_top = 8
+border_width_right = 8
+border_width_bottom = 8
+border_color = Color(1, 1, 1, 1)
+border_blend = true
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+
+[node name="DefaultButton" type="Button"]
+theme_override_fonts/font = ExtResource("1_gqh8d")
+theme_override_font_sizes/font_size = 50
+theme_override_styles/focus = SubResource("StyleBoxEmpty_h61rw")
+theme_override_styles/hover = SubResource("StyleBoxFlat_h61rw")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_gqh8d")
+theme_override_styles/normal = ExtResource("2_5jl3p")
+text = "Default Text"

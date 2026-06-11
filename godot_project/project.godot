@@ -11,11 +11,16 @@ config_version=5
 [application]
 
 config/name="Chess Bot"
-run/main_scene="res://main.tscn"
+run/main_scene="uid://b6t4i5muxt5mt"
 config/features=PackedStringArray("4.4", "GL Compatibility")
 config/icon="res://icon.svg"
+
+[autoload]
+
+GameManager="*res://scenes/game_manager.tscn"
 
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true

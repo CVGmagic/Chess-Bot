@@ -1,0 +1,275 @@
+[gd_scene load_steps=8 format=3 uid="uid://31gelg1yi55j"]
+
+[ext_resource type="Script" uid="uid://146cya4lxgwi" path="res://scripts/options_menu.gd" id="1_3xsyx"]
+[ext_resource type="Texture2D" uid="uid://00xnfsny0jow" path="res://assets/background_images/King_black_background_2.jpg" id="2_dhn0l"]
+[ext_resource type="FontFile" uid="uid://x38r70q8lyf2" path="res://assets/fonts/Cinzel/static/Cinzel-SemiBold.ttf" id="3_k61yy"]
+[ext_resource type="FontFile" uid="uid://cs3mnyo1q0i70" path="res://assets/fonts/Cinzel/static/Cinzel-ExtraBold.ttf" id="4_7txom"]
+[ext_resource type="PackedScene" uid="uid://bieqxvblkm5f4" path="res://scenes/default_button.tscn" id="5_binsn"]
+[ext_resource type="ButtonGroup" uid="uid://b7kjknqhlcvbc" path="res://button_groups/player_selection_group.tres" id="6_dhn0l"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_dhn0l"]
+bg_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+expand_margin_top = 4.0
+expand_margin_bottom = 4.0
+
+[node name="OptionsMenu" type="Control"]
+layout_mode = 3
+anchor_right = 3.996
+anchor_bottom = 3.793
+offset_left = 87.0
+offset_top = 3.0
+offset_right = -2476.39
+offset_bottom = -1248.86
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_3xsyx")
+
+[node name="BackgroundImage2" type="TextureRect" parent="."]
+modulate = Color(0.454524, 0.454524, 0.454524, 1)
+layout_mode = 0
+offset_left = -140.0
+offset_top = -4.0
+offset_right = 878.0
+offset_bottom = 668.0
+texture = ExtResource("2_dhn0l")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="BackgroundImage" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_top = -0.003
+anchor_right = 0.021
+offset_left = 91.0
+offset_top = -0.381988
+offset_right = 1023.16
+offset_bottom = 647.0
+texture = ExtResource("2_dhn0l")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="OptionsLabel" type="RichTextLabel" parent="."]
+layout_mode = 0
+offset_left = 197.0
+offset_top = 32.0
+offset_right = 533.0
+offset_bottom = 139.0
+theme_override_fonts/normal_font = ExtResource("3_k61yy")
+theme_override_fonts/mono_font = ExtResource("3_k61yy")
+theme_override_fonts/italics_font = ExtResource("3_k61yy")
+theme_override_fonts/bold_italics_font = ExtResource("4_7txom")
+theme_override_fonts/bold_font = ExtResource("4_7txom")
+theme_override_font_sizes/bold_italics_font_size = 70
+theme_override_font_sizes/italics_font_size = 70
+theme_override_font_sizes/mono_font_size = 70
+theme_override_font_sizes/normal_font_size = 70
+theme_override_font_sizes/bold_font_size = 70
+text = "Options"
+
+[node name="PlayerSelectionContainer" type="VBoxContainer" parent="."]
+layout_mode = 0
+offset_left = -39.0
+offset_top = 155.0
+offset_right = 329.0
+offset_bottom = 255.0
+theme_override_constants/separation = 30
+
+[node name="PlayerSelectionLabel" type="RichTextLabel" parent="PlayerSelectionContainer"]
+layout_mode = 2
+theme_override_fonts/normal_font = ExtResource("3_k61yy")
+theme_override_fonts/mono_font = ExtResource("3_k61yy")
+theme_override_fonts/italics_font = ExtResource("3_k61yy")
+theme_override_fonts/bold_italics_font = ExtResource("4_7txom")
+theme_override_fonts/bold_font = ExtResource("4_7txom")
+theme_override_font_sizes/bold_italics_font_size = 70
+theme_override_font_sizes/italics_font_size = 70
+theme_override_font_sizes/mono_font_size = 70
+theme_override_font_sizes/normal_font_size = 40
+theme_override_font_sizes/bold_font_size = 70
+text = "Player Selection
+"
+fit_content = true
+horizontal_alignment = 1
+
+[node name="HBoxContainer" type="HBoxContainer" parent="PlayerSelectionContainer"]
+layout_mode = 2
+theme_override_constants/separation = 50
+alignment = 1
+
+[node name="PlayerWhiteButton" parent="PlayerSelectionContainer/HBoxContainer" instance=ExtResource("5_binsn")]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 20
+toggle_mode = true
+button_group = ExtResource("6_dhn0l")
+text = "White"
+
+[node name="PlayerBlackButton" parent="PlayerSelectionContainer/HBoxContainer" instance=ExtResource("5_binsn")]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 20
+toggle_mode = true
+button_group = ExtResource("6_dhn0l")
+text = "Black"
+
+[node name="PlayerRandomButton" parent="PlayerSelectionContainer/HBoxContainer" instance=ExtResource("5_binsn")]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 20
+toggle_mode = true
+button_pressed = true
+button_group = ExtResource("6_dhn0l")
+text = "Random"
+
+[node name="EngineVersionContainer" type="VBoxContainer" parent="."]
+layout_mode = 0
+offset_left = 391.0
+offset_top = 155.0
+offset_right = 734.0
+offset_bottom = 271.0
+theme_override_constants/separation = 30
+
+[node name="EngineVersionLabel" type="RichTextLabel" parent="EngineVersionContainer"]
+layout_mode = 2
+theme_override_fonts/normal_font = ExtResource("3_k61yy")
+theme_override_fonts/mono_font = ExtResource("3_k61yy")
+theme_override_fonts/italics_font = ExtResource("3_k61yy")
+theme_override_fonts/bold_italics_font = ExtResource("4_7txom")
+theme_override_fonts/bold_font = ExtResource("4_7txom")
+theme_override_font_sizes/bold_italics_font_size = 70
+theme_override_font_sizes/italics_font_size = 70
+theme_override_font_sizes/mono_font_size = 70
+theme_override_font_sizes/normal_font_size = 40
+theme_override_font_sizes/bold_font_size = 70
+text = "Engine Version"
+fit_content = true
+horizontal_alignment = 1
+
+[node name="EngineSelectionDropdown" type="OptionButton" parent="EngineVersionContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+selected = 0
+item_count = 3
+popup/item_0/text = "Negamax naive"
+popup/item_0/id = 0
+popup/item_1/text = "Alpha-Beta naive"
+popup/item_1/id = 1
+popup/item_2/text = "Alpha-Beta positional"
+popup/item_2/id = 2
+
+[node name="MusicVolumeContainer" type="VBoxContainer" parent="."]
+layout_mode = 0
+offset_left = -6.0
+offset_top = 388.0
+offset_right = 297.0
+offset_bottom = 554.0
+theme_override_constants/separation = 30
+
+[node name="MusicVolumeLabel" type="RichTextLabel" parent="MusicVolumeContainer"]
+layout_mode = 2
+theme_override_fonts/normal_font = ExtResource("3_k61yy")
+theme_override_fonts/mono_font = ExtResource("3_k61yy")
+theme_override_fonts/italics_font = ExtResource("3_k61yy")
+theme_override_fonts/bold_italics_font = ExtResource("4_7txom")
+theme_override_fonts/bold_font = ExtResource("4_7txom")
+theme_override_font_sizes/bold_italics_font_size = 70
+theme_override_font_sizes/italics_font_size = 70
+theme_override_font_sizes/mono_font_size = 70
+theme_override_font_sizes/normal_font_size = 40
+theme_override_font_sizes/bold_font_size = 70
+text = "Music Volume"
+fit_content = true
+horizontal_alignment = 1
+
+[node name="MusicVolumeSliderLabel" type="RichTextLabel" parent="MusicVolumeContainer"]
+layout_mode = 2
+theme_override_fonts/normal_font = ExtResource("3_k61yy")
+theme_override_fonts/mono_font = ExtResource("3_k61yy")
+theme_override_fonts/italics_font = ExtResource("3_k61yy")
+theme_override_fonts/bold_italics_font = ExtResource("4_7txom")
+theme_override_fonts/bold_font = ExtResource("4_7txom")
+theme_override_font_sizes/bold_italics_font_size = 70
+theme_override_font_sizes/italics_font_size = 70
+theme_override_font_sizes/mono_font_size = 70
+theme_override_font_sizes/normal_font_size = 25
+theme_override_font_sizes/bold_font_size = 70
+text = "100%"
+fit_content = true
+horizontal_alignment = 1
+
+[node name="MusicVolumeSlider" type="HSlider" parent="MusicVolumeContainer"]
+custom_minimum_size = Vector2(250, 16)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_styles/slider = SubResource("StyleBoxFlat_dhn0l")
+theme_override_styles/grabber_area = SubResource("StyleBoxFlat_dhn0l")
+max_value = 1.0
+step = 0.01
+value = 1.0
+
+[node name="VFXVolumeContainer" type="VBoxContainer" parent="."]
+layout_mode = 2
+offset_left = 393.0
+offset_top = 388.0
+offset_right = 696.0
+offset_bottom = 554.0
+theme_override_constants/separation = 30
+
+[node name="VFXVolumeLabel" type="RichTextLabel" parent="VFXVolumeContainer"]
+layout_mode = 2
+theme_override_fonts/normal_font = ExtResource("3_k61yy")
+theme_override_fonts/mono_font = ExtResource("3_k61yy")
+theme_override_fonts/italics_font = ExtResource("3_k61yy")
+theme_override_fonts/bold_italics_font = ExtResource("4_7txom")
+theme_override_fonts/bold_font = ExtResource("4_7txom")
+theme_override_font_sizes/bold_italics_font_size = 70
+theme_override_font_sizes/italics_font_size = 70
+theme_override_font_sizes/mono_font_size = 70
+theme_override_font_sizes/normal_font_size = 40
+theme_override_font_sizes/bold_font_size = 70
+text = "VFX Volume"
+fit_content = true
+horizontal_alignment = 1
+
+[node name="VFXVolumeSliderLabel" type="RichTextLabel" parent="VFXVolumeContainer"]
+layout_mode = 2
+theme_override_fonts/normal_font = ExtResource("3_k61yy")
+theme_override_fonts/mono_font = ExtResource("3_k61yy")
+theme_override_fonts/italics_font = ExtResource("3_k61yy")
+theme_override_fonts/bold_italics_font = ExtResource("4_7txom")
+theme_override_fonts/bold_font = ExtResource("4_7txom")
+theme_override_font_sizes/bold_italics_font_size = 70
+theme_override_font_sizes/italics_font_size = 70
+theme_override_font_sizes/mono_font_size = 70
+theme_override_font_sizes/normal_font_size = 25
+theme_override_font_sizes/bold_font_size = 70
+text = "100%"
+fit_content = true
+horizontal_alignment = 1
+
+[node name="VFXVolumeSlider" type="HSlider" parent="VFXVolumeContainer"]
+custom_minimum_size = Vector2(250, 16)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_styles/slider = SubResource("StyleBoxFlat_dhn0l")
+theme_override_styles/grabber_area = SubResource("StyleBoxFlat_dhn0l")
+max_value = 1.0
+step = 0.01
+value = 1.0
+
+[node name="BackButton" parent="." instance=ExtResource("5_binsn")]
+layout_mode = 0
+offset_left = -60.0
+offset_top = 25.0
+offset_right = 27.0
+offset_bottom = 66.0
+theme_override_font_sizes/font_size = 20
+text = "Back"
+
+[connection signal="value_changed" from="MusicVolumeContainer/MusicVolumeSlider" to="." method="_on_music_volume_slider_value_changed"]
+[connection signal="value_changed" from="VFXVolumeContainer/VFXVolumeSlider" to="." method="_on_vfx_volume_slider_value_changed"]
+[connection signal="pressed" from="BackButton" to="." method="_on_back_button_pressed"]
