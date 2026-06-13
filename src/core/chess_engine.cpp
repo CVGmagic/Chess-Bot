@@ -13,6 +13,13 @@ ChessEngine::ChessEngine() {
         init_sliders_database(); 
         sliding_lookup_initialised = true; 
     }
+
+    // Initialise between matrix
+    static bool between_matrix_initialised = false;
+    if (!between_matrix_initialised) {
+        init_between_matrix();
+        between_matrix_initialised = true;
+    }
 }
 
 
@@ -20,8 +27,11 @@ ChessEngine::~ChessEngine() {}
 
 
 void ChessEngine::generate_pseudo_legal_moves(const Board& board, std::vector<Move>& move_list) {
-    // TODO Can probably be optimized by replacing occupancy[EMPTY] with ~occupancy[BOTH]
+    // TODO Can probably be optimized by replacing occupancy[NEITHER] with ~occupancy[BOTH]
     // This requires less memory with only slightly more computation
+
+    // Add quiet moves to seperate list for better move ordering
+    std::vector<Move> quiet_move_list;
 
     // Determine which side we are
     int us = board.side_to_move;
@@ -61,17 +71,17 @@ void ChessEngine::generate_pseudo_legal_moves(const Board& board, std::vector<Mo
             int forward_sq = from_sq + 8;
             if (forward_sq < 64 && ((1ULL << forward_sq) & board.occupancy[NEITHER])) { // Square in front is empty
                 if (forward_sq >= 56) { // Back rank
-                    move_list.push_back(Move(from_sq, forward_sq, FLAG_PROMO_KNIGHT));
-                    move_list.push_back(Move(from_sq, forward_sq, FLAG_PROMO_BISHOP));
-                    move_list.push_back(Move(from_sq, forward_sq, FLAG_PROMO_ROOK));
-                    move_list.push_back(Move(from_sq, forward_sq, FLAG_PROMO_QUEEN));
+                    quiet_move_list.push_back(Move(from_sq, forward_sq, FLAG_PROMO_KNIGHT));
+                    quiet_move_list.push_back(Move(from_sq, forward_sq, FLAG_PROMO_BISHOP));
+                    quiet_move_list.push_back(Move(from_sq, forward_sq, FLAG_PROMO_ROOK));
+                    quiet_move_list.push_back(Move(from_sq, forward_sq, FLAG_PROMO_QUEEN));
                 }
                 else {
-                    move_list.push_back(Move(from_sq, forward_sq, FLAG_QUIET));
+                    quiet_move_list.push_back(Move(from_sq, forward_sq, FLAG_QUIET));
                     if (from_sq / 8 == 1) { // Starting square
                         int double_push = from_sq + 16;
                         if (double_push < 64 && ((1ULL << double_push) & board.occupancy[NEITHER])) {
-                            move_list.push_back(Move(from_sq, double_push, FLAG_DOUBLE_PAWN_PUSH));
+                            quiet_move_list.push_back(Move(from_sq, double_push, FLAG_DOUBLE_PAWN_PUSH));
                         }
                     } 
                 }
@@ -86,11 +96,11 @@ void ChessEngine::generate_pseudo_legal_moves(const Board& board, std::vector<Mo
                     move_list.push_back(Move(from_sq, forward_sq, FLAG_PROMO_QUEEN));
                 }
                 else {
-                    move_list.push_back(Move(from_sq, forward_sq, FLAG_QUIET));
+                    quiet_move_list.push_back(Move(from_sq, forward_sq, FLAG_QUIET));
                     if (from_sq / 8 == 6) { // Starting square
                         int double_push = from_sq - 16;
                         if ((1ULL << double_push) & board.occupancy[NEITHER]) {
-                            move_list.push_back(Move(from_sq, double_push, FLAG_DOUBLE_PAWN_PUSH));
+                            quiet_move_list.push_back(Move(from_sq, double_push, FLAG_DOUBLE_PAWN_PUSH));
                         }
                     } 
                 }
@@ -107,7 +117,7 @@ void ChessEngine::generate_pseudo_legal_moves(const Board& board, std::vector<Mo
         uint64_t captures = raw_attacks & board.occupancy[them];
         uint64_t quiet_moves = raw_attacks & board.occupancy[NEITHER];
         while (captures) {move_list.push_back(Move(from_sq, pop_lsb(captures), FLAG_CAPTURE));}
-        while (quiet_moves) {move_list.push_back(Move(from_sq, pop_lsb(quiet_moves), FLAG_QUIET));}
+        while (quiet_moves) {quiet_move_list.push_back(Move(from_sq, pop_lsb(quiet_moves), FLAG_QUIET));}
     }
 
     // GENERATE LEGAL BISHOP MOVES
@@ -119,7 +129,7 @@ void ChessEngine::generate_pseudo_legal_moves(const Board& board, std::vector<Mo
         uint64_t captures = raw_attacks & board.occupancy[them];
         uint64_t quiet_moves = raw_attacks & board.occupancy[NEITHER];
         while (captures) {move_list.push_back(Move(from_sq, pop_lsb(captures), FLAG_CAPTURE));}
-        while (quiet_moves) {move_list.push_back(Move(from_sq, pop_lsb(quiet_moves), FLAG_QUIET));}
+        while (quiet_moves) {quiet_move_list.push_back(Move(from_sq, pop_lsb(quiet_moves), FLAG_QUIET));}
     }
 
     // GENERATE LEGAL ROOK MOVES
@@ -131,7 +141,7 @@ void ChessEngine::generate_pseudo_legal_moves(const Board& board, std::vector<Mo
         uint64_t captures = raw_attacks & board.occupancy[them];
         uint64_t quiet_moves = raw_attacks & board.occupancy[NEITHER];
         while (captures) {move_list.push_back(Move(from_sq, pop_lsb(captures), FLAG_CAPTURE));}
-        while (quiet_moves) {move_list.push_back(Move(from_sq, pop_lsb(quiet_moves), FLAG_QUIET));}
+        while (quiet_moves) {quiet_move_list.push_back(Move(from_sq, pop_lsb(quiet_moves), FLAG_QUIET));}
     }
 
     // GENERATE LEGAL QUEEN MOVES
@@ -143,7 +153,7 @@ void ChessEngine::generate_pseudo_legal_moves(const Board& board, std::vector<Mo
         uint64_t captures = raw_attacks & board.occupancy[them];
         uint64_t quiet_moves = raw_attacks & board.occupancy[NEITHER];
         while (captures) {move_list.push_back(Move(from_sq, pop_lsb(captures), FLAG_CAPTURE));}
-        while (quiet_moves) {move_list.push_back(Move(from_sq, pop_lsb(quiet_moves), FLAG_QUIET));}
+        while (quiet_moves) {quiet_move_list.push_back(Move(from_sq, pop_lsb(quiet_moves), FLAG_QUIET));}
     }
 
     // GENERATE LEGAL KING MOVES
@@ -155,7 +165,7 @@ void ChessEngine::generate_pseudo_legal_moves(const Board& board, std::vector<Mo
         uint64_t captures = raw_attacks & board.occupancy[them];
         uint64_t quiet_moves = raw_attacks & board.occupancy[NEITHER];
         while (captures) {move_list.push_back(Move(king_square, pop_lsb(captures), FLAG_CAPTURE));}
-        while (quiet_moves) {move_list.push_back(Move(king_square, pop_lsb(quiet_moves), FLAG_QUIET));}
+        while (quiet_moves) {quiet_move_list.push_back(Move(king_square, pop_lsb(quiet_moves), FLAG_QUIET));}
 
         // Handle castling
         if (us == WHITE) {
@@ -190,6 +200,8 @@ void ChessEngine::generate_pseudo_legal_moves(const Board& board, std::vector<Mo
             }
         }
     }
+    // Add quiet moves to move_list
+    move_list.insert(move_list.end(), quiet_move_list.begin(), quiet_move_list.end());
 }
 
 
@@ -399,21 +411,60 @@ bool ChessEngine::is_in_check(const Board& board, int color) {
 }
 
 
+uint64_t ChessEngine::get_absolute_pins(const Board& board, int king_sq) {
+    // Returns a mask with all pinned pieces
+    int us = board.side_to_move;
+    int them = us ^ 1;
+
+    uint64_t pinned_mask = 0;
+
+    // Pretend like only their pieces are on the board
+    uint64_t bishop_pinners = get_bishop_attacks(king_sq, board.occupancy[them], ~0ULL) & (board.bitboards[them][BISHOP] | board.bitboards[them][QUEEN]);
+    uint64_t rook_pinners = get_rook_attacks(king_sq, board.occupancy[them], ~0ULL) & (board.bitboards[them][ROOK] | board.bitboards[them][QUEEN]);
+
+    uint64_t all_pinners = bishop_pinners | rook_pinners;
+
+    while (all_pinners) {
+        int pinner_sq = pop_lsb(all_pinners); // Get next attacking slider square
+        
+        uint64_t squares_between = between_matrix[king_sq][pinner_sq];
+        
+        uint64_t blockers = squares_between & board.occupancy[BOTH];
+        
+        if (blockers && (blockers & (blockers - 1)) == 0) { // Exactly one piece between king and enemy
+            if (blockers & board.occupancy[us]) { // That piece belongs to us
+                pinned_mask |= blockers;
+            }
+        }
+    }
+
+    return pinned_mask;
+}
+
+
 void ChessEngine::generate_legal_moves(const Board& board, std::vector<Move>& move_list) {
     // TODO Optimize by running seperate functions if king is in check
-    // and using X-ray masking for pinned pieces to avoid checking
-    // legality of every move
+
+    uint64_t king_bitboard = board.bitboards[board.side_to_move][KING];
+    int king_sq = pop_lsb(king_bitboard);
+    uint64_t pin_mask = get_absolute_pins(board, king_sq);
+    bool in_check = is_in_check(board, board.side_to_move);
 
     std::vector<Move> pseudo_moves;
     generate_pseudo_legal_moves(board, pseudo_moves);
 
     for (Move move : pseudo_moves) {
-        // Copy the boards
-        Board simulated_board = board;
-        simulated_board.make_move(move);
-
-        if (!is_in_check(simulated_board, board.side_to_move)) {
+        // Not pinned piece and not king move and not currently in check
+        if (!(pin_mask & 1ULL << move.get_from()) && (move.get_from() != king_sq) && (!in_check)) {
             move_list.push_back(move);
+        }
+        // Safe Fallback
+        else {
+            Board simulated_board = board;
+            simulated_board.make_move(move);
+            if (!is_in_check(simulated_board, board.side_to_move)) {
+                move_list.push_back(move);
+            }
         }
     }
 }
@@ -556,10 +607,10 @@ int ChessEngine::evaluate(const Board& board) {
 }
 
 
-int ChessEngine::minmax(const Board& board, int depth) {
+std::pair<int, Move> ChessEngine::minmax(const Board& board, int depth) {
     // Returns the evaluation of the outcome if both sides play perfectly for depth moves
     if (depth == 0) {
-        return evaluate(board);
+        return {evaluate(board), Move(0, 0)};
     }
 
     std::vector<Move> legal_moves;
@@ -567,22 +618,25 @@ int ChessEngine::minmax(const Board& board, int depth) {
 
     if (legal_moves.empty()) {
         if (is_in_check(board, board.side_to_move)) { // Checkmate
-            return -29000;
+            return {-29000 - depth, Move(0, 0)};
         }
-        return 0; // Stalemate
+        return {0, Move(0, 0)}; // Stalemate
     }
 
     int max_score = -999999;
+    Move best_move;
+
     for (const Move& move : legal_moves) {
         Board simulated_board = board;
         simulated_board.make_move(move);
 
-        int score = -minmax(simulated_board, depth - 1);
+        int score = -minmax(simulated_board, depth - 1).first;
         if (score > max_score) {
             max_score = score;
+            best_move = move;
         }
     }
-    return max_score;
+    return {max_score, best_move};
 }
 
 
