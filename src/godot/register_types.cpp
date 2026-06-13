@@ -13,7 +13,7 @@ void initialize_chess_module(ModuleInitializationLevel p_level) {
     }
 
     // Register your custom C++ class into Godot's engine database
-    ClassDB::register_class<GodotChessEngineV1>();
+    ClassDB::register_class<GodotChessEngine>();
 }
 
 void uninitialize_chess_module(ModuleInitializationLevel p_level) {

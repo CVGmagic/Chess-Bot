@@ -84,6 +84,7 @@ enum MoveFlag {
     FLAG_PROMO_CAPTURE_Q    = 0xF  // 1111
 };
 
+const int INF = 30000;
 
 struct Move {
     uint16_t data = 0;
@@ -281,10 +282,9 @@ private:
 
     int evaluate(const Board& board);
 
-
     int minmax(const Board& board, int depth);
 
-    int alpha_beta(const Board& board, int depth, int alpha, int beta);
+    std::pair<int, Move> search(const Board& board, int depth, int alpha, int beta);
 
     Board board;
 

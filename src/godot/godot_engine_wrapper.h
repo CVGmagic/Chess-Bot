@@ -8,22 +8,22 @@
 
 namespace godot {
 
-class GodotChessEngineV1 : public RefCounted {
-    GDCLASS(GodotChessEngineV1, RefCounted);
+class GodotChessEngine : public RefCounted {
+    GDCLASS(GodotChessEngine, RefCounted);
 
 private:
     ChessCore::ChessEngine native_engine;
 
 protected:
     static void _bind_methods() {
-        ClassDB::bind_method(D_METHOD("make_best_move", "depth"), &GodotChessEngineV1::make_best_move);
-        ClassDB::bind_method(D_METHOD("try_move", "from_rank", "from_file", "to_rank", "to_file", "promo_choice"), &GodotChessEngineV1::try_move);
-        ClassDB::bind_method(D_METHOD("set_board_from_array", "setup_board_array", "side_to_move", "castling_rights"), &GodotChessEngineV1::set_board_from_array);
+        ClassDB::bind_method(D_METHOD("make_best_move", "depth"), &GodotChessEngine::make_best_move);
+        ClassDB::bind_method(D_METHOD("try_move", "from_rank", "from_file", "to_rank", "to_file", "promo_choice"), &GodotChessEngine::try_move);
+        ClassDB::bind_method(D_METHOD("set_board_from_array", "setup_board_array", "side_to_move", "castling_rights"), &GodotChessEngine::set_board_from_array);
     }
 
 public:
-    GodotChessEngineV1() {}
-    ~GodotChessEngineV1() {}
+    GodotChessEngine() {}
+    ~GodotChessEngine() {}
 
     int make_best_move(int depth) {
         // Call the decoupled C++ search algorithm directly

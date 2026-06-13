@@ -586,37 +586,53 @@ int ChessEngine::minmax(const Board& board, int depth) {
 }
 
 
-int ChessEngine::alpha_beta(const Board& board, int depth, int alpha, int beta) {
-    return 0;
+Move ChessEngine::make_best_move(int depth) {
+    // Plays the best move and returns its raw data
+    std::pair<int, Move> res = search(board, depth, -INF, INF);
+
+    return res.second;
 }
 
 
-Move ChessEngine::make_best_move(int depth) {
-    // Plays the best move and returns its raw data
+std::pair<int, Move> ChessEngine::search(const Board& board, int depth, int alpha, int beta) {
+    if (depth == 0) {
+        return {evaluate(board), Move(0, 0)};
+    }
+
     std::vector<Move> legal_moves;
     generate_legal_moves(board, legal_moves);
 
     if (legal_moves.empty()) {
-        return Move(0, 0, FLAG_QUIET);
+        if (is_in_check(board, board.side_to_move)) { // Checkmate
+            return {-29000 - depth, Move(0, 0)}; // Make further checkmates better
+        }
+        return {0, Move(0, 0)}; // Stalemate
     }
 
-    Move best_move;
-    int best_score = -999999;
+    Move best_move_at_this_node;
+    int best_score = -INF;
 
     for (const Move& move : legal_moves) {
         Board simulated_board = board;
         simulated_board.make_move(move);
 
-        int score = -minmax(simulated_board, depth - 1);
+        int score = -search(simulated_board, depth - 1, -beta, -alpha).first;
+
         if (score > best_score) {
-            best_move = move;
             best_score = score;
+            best_move_at_this_node = move;
+        }
+
+        if (score >= beta) { // Opponent will never allow this
+            return {score, move};
+        }
+
+        if (score > alpha) { // Remember what I have found (pruning occurs one recursion step further)
+            alpha = score;
         }
     }
 
-    board.make_move(best_move);
-
-    return best_move;
+    return {best_score, best_move_at_this_node};
 }
 
 
