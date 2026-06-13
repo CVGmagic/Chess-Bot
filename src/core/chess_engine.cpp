@@ -1,11 +1,10 @@
 #include "chess_engine.h"
 #include "movegen.h"
-#include <godot_cpp/core/class_db.hpp>
-#include <godot_cpp/variant/packed_int32_array.hpp>
 #include <vector>
 #include <random>
+#include <iostream>
 
-namespace godot {
+namespace ChessCore {
 
 ChessEngine::ChessEngine() {
     static bool sliding_lookup_initialised = false;
@@ -17,18 +16,7 @@ ChessEngine::ChessEngine() {
 }
 
 
-ChessEngine::~ChessEngine() {
-}
-
-
-// 3. MUST have ChessEngine:: right here!
-void ChessEngine::_bind_methods() {
-    ClassDB::bind_method(D_METHOD("get_random_legal_move"), &ChessEngine::get_random_legal_move);
-    ClassDB::bind_method(D_METHOD("set_board_from_array", "setup_board_array", "side_to_move", "castling_rights"), &ChessEngine::set_board_from_array);
-    ClassDB::bind_method(D_METHOD("try_move", "from_rank", "from_file", "to_rank", "to_file", "promo_choice"), &ChessEngine::try_move);
-    ClassDB::bind_method(D_METHOD("perft", "depth"), &ChessEngine::perft);
-    ClassDB::bind_method(D_METHOD("make_best_move", "depth"), &ChessEngine::make_best_move);
-}
+ChessEngine::~ChessEngine() {}
 
 
 void ChessEngine::generate_pseudo_legal_moves(const Board& board, std::vector<Move>& move_list) {
@@ -205,17 +193,55 @@ void ChessEngine::generate_pseudo_legal_moves(const Board& board, std::vector<Mo
 }
 
 
-void ChessEngine::set_board_from_array(const PackedInt32Array &setup_board_array, int32_t side_to_move, int32_t castling_rights) {
-    
+void ChessEngine::set_board_to_startpos() {
+    static const Board START_BOARD = []() {
+        Board b;
+        b.clear(); // Ensure everything starts at 0
+
+        // White pieces
+        b.bitboards[WHITE][PAWN]   = 0x000000000000FF00ULL; // Rank 2
+        b.bitboards[WHITE][ROOK]   = 0x0000000000000081ULL; // A1, H1
+        b.bitboards[WHITE][KNIGHT] = 0x0000000000000042ULL; // B1, G1
+        b.bitboards[WHITE][BISHOP] = 0x0000000000000024ULL; // C1, F1
+        b.bitboards[WHITE][QUEEN]  = 0x0000000000000008ULL; // D1
+        b.bitboards[WHITE][KING]   = 0x0000000000000010ULL; // E1
+
+        // Black pieces
+        b.bitboards[BLACK][PAWN]   = 0x00FF000000000000ULL; // Rank 7
+        b.bitboards[BLACK][ROOK]   = 0x8100000000000000ULL; // A8, H8
+        b.bitboards[BLACK][KNIGHT] = 0x4200000000000000ULL; // B8, G8
+        b.bitboards[BLACK][BISHOP] = 0x2400000000000000ULL; // C8, F8
+        b.bitboards[BLACK][QUEEN]  = 0x0800000000000000ULL; // D8
+        b.bitboards[BLACK][KING]   = 0x1000000000000000ULL; // E8
+
+        // Game rules state info
+        b.side_to_move = WHITE;     // 0
+        b.castling_rights = 0b1111; // Both sides can castle both ways
+        b.en_passant_square = -1;   // None
+        
+        b.material = 0; // Equal material at the start
+
+        // Rebuild all initial occupancy masks
+        for (int p = 0; p < 6; p++) {
+            b.occupancy[WHITE] |= b.bitboards[WHITE][p];
+            b.occupancy[BLACK] |= b.bitboards[BLACK][p];
+        }
+        b.occupancy[BOTH]    = b.occupancy[WHITE] | b.occupancy[BLACK];
+        b.occupancy[NEITHER] = ~b.occupancy[BOTH];
+        b.occupancy[USABLE]  = ~b.occupancy[WHITE];
+
+        return b;
+    }(); // The () here executes the logic immediately to fill START_BOARD
+
+    this->board = START_BOARD; // Overwrite board fast
+}
+
+
+void ChessEngine::set_board_from_array(const int32_t* raw_squares, int32_t side_to_move, int32_t castling_rights) {  
     board.clear();
 
-    if (setup_board_array.size() != 64) {
-        UtilityFunctions::printerr("ChessEngine Error: Board array must contain exactly 64 elements!");
-        return;
-    }
-
-    for (int i = 0; i < setup_board_array.size(); i++) {
-        int piece = setup_board_array[i];
+    for (int i = 0; i < 64; i++) {
+        int piece = raw_squares[i];
         
         if (piece == WHITE_PAWN) {
             board.set_bit(board.bitboards[WHITE][PAWN], i);
@@ -393,7 +419,7 @@ void ChessEngine::generate_legal_moves(const Board& board, std::vector<Move>& mo
 }
 
 
-int32_t ChessEngine::try_move(int32_t from_rank, int32_t from_file, int32_t to_rank, int32_t to_file, int32_t promo_choice) {
+int ChessEngine::try_move(int32_t from_rank, int32_t from_file, int32_t to_rank, int32_t to_file, int32_t promo_choice) {
     int from_sq = from_rank * 8 + from_file % 8;
     int to_sq = to_rank * 8 + to_file % 8;
 
@@ -416,6 +442,87 @@ int32_t ChessEngine::try_move(int32_t from_rank, int32_t from_file, int32_t to_r
         }
     }
     return 0;
+}
+
+
+Move ChessEngine::get_opponent_move(int from_sq, int to_sq, int promo_choice) {
+    // Gets the move flag for a move, without validating legality
+    int us = board.side_to_move;
+    int them = us ^ 1;
+
+    uint64_t from_mask = 1ULL << from_sq;
+    uint64_t to_mask = 1ULL << to_sq;
+
+
+    // Identify the moving piece type
+    int moved_piece = -1;
+    for (int p = 0; p < 6; p++) {
+        if (board.bitboards[us][p] & from_mask) {
+            moved_piece = p;
+            break;
+        }
+    }
+
+    // Figure out if the move was a capture
+    bool is_capture = false;
+    for (int p = 0; p < 6; p++) {
+        if (board.bitboards[them][p] & to_mask) {
+            is_capture = true;
+            break;
+        }
+    }
+
+    // Check Promotion
+    if (promo_choice != 0) {
+        if (is_capture) {
+            switch (promo_choice) {
+                case 1 : return Move(from_sq, to_sq, FLAG_PROMO_CAPTURE_N);
+                case 2 : return Move(from_sq, to_sq, FLAG_PROMO_CAPTURE_B);
+                case 3 : return Move(from_sq, to_sq, FLAG_PROMO_CAPTURE_R);
+                case 4 : return Move(from_sq, to_sq, FLAG_PROMO_CAPTURE_Q);
+                default : std::cerr << "Unexpected promotion type\n"; return Move(from_sq, to_sq); 
+            }
+        }
+        else {
+            switch (promo_choice) {
+                case 1 : return Move(from_sq, to_sq, FLAG_PROMO_KNIGHT);
+                case 2 : return Move(from_sq, to_sq, FLAG_PROMO_BISHOP);
+                case 3 : return Move(from_sq, to_sq, FLAG_PROMO_ROOK);
+                case 4 : return Move(from_sq, to_sq, FLAG_PROMO_QUEEN);
+                default : std::cerr << "Unexpected promotion type\n"; return Move(from_sq, to_sq); 
+            }
+        }
+    }
+
+    // Check Castling
+    if (moved_piece == KING && std::abs(from_sq - to_sq) == 2) {
+        return (to_sq > from_sq) ? Move(from_sq, to_sq, FLAG_KING_CASTLE) : Move(from_sq, to_sq, FLAG_QUEEN_CASTLE);
+    }
+
+    // Check Double Pawn Push
+    if (moved_piece == PAWN && std::abs(from_sq - to_sq) == 16) {
+        return Move(from_sq, to_sq, FLAG_DOUBLE_PAWN_PUSH);
+    }
+
+    // Check En Passant
+    if (moved_piece == PAWN && to_sq == board.en_passant_square) {
+        return Move(from_sq, to_sq, FLAG_EN_PASSANT);
+    }
+
+    if (is_capture) {
+        return Move(from_sq, to_sq, FLAG_CAPTURE);
+    } 
+    else {
+        return Move(from_sq, to_sq, FLAG_QUIET);
+    }
+}
+
+
+void ChessEngine::make_opponent_move(int from_sq, int to_sq, int promo_choice) {
+    // Makes a move based on the given parameters without checking legality
+    Move opponent_move = get_opponent_move(from_sq, to_sq, promo_choice);
+
+    board.make_move(opponent_move);
 }
 
 
@@ -484,13 +591,13 @@ int ChessEngine::alpha_beta(const Board& board, int depth, int alpha, int beta) 
 }
 
 
-int ChessEngine::make_best_move(int depth) {
+Move ChessEngine::make_best_move(int depth) {
     // Plays the best move and returns its raw data
     std::vector<Move> legal_moves;
     generate_legal_moves(board, legal_moves);
 
     if (legal_moves.empty()) {
-        return 0;
+        return Move(0, 0, FLAG_QUIET);
     }
 
     Move best_move;
@@ -509,7 +616,7 @@ int ChessEngine::make_best_move(int depth) {
 
     board.make_move(best_move);
 
-    return best_move.data;
+    return best_move;
 }
 
 

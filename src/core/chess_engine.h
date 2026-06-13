@@ -1,18 +1,19 @@
 #ifndef CHESS_ENGINE_H
 #define CHESS_ENGINE_H
 
-#include <godot_cpp/classes/ref_counted.hpp>
-#include <godot_cpp/variant/packed_int32_array.hpp>
-#include <godot_cpp/variant/utility_functions.hpp>
 #include <vector>
+#if defined(_MSC_VER)
 #include <intrin.h>
+#endif
 #include <cstdint>
+#include <iostream>
+
 
 // Compile with:
-// scons platform=windows target=template_debug
+// scons platform=windows target=template_release
 
 
-namespace godot {
+namespace ChessCore {
 
 static const uint8_t castling_rights_update[64] = { // Allows fast castling rights updates
     13, 15, 15, 15, 12, 15, 15, 14,  // Row 1
@@ -174,7 +175,7 @@ struct Board {
         }
 
         if (piece == -1) {
-            UtilityFunctions::push_error("Invalid piece type encountered when trying to make a move");
+            std::cerr << "Invalid piece type encountered when trying to make a move";
             return;
         }
 
@@ -247,14 +248,13 @@ struct Board {
 };
 
 
-class ChessEngine : public RefCounted {
-    GDCLASS(ChessEngine, RefCounted); // Hooks this class into Godot's type system
-
+class ChessEngine {
 private:
-
     static const uint64_t KNIGHT_ATTACKS[64];
 
     inline int pop_lsb(uint64_t& bitboard) {
+        if (bitboard == 0) {return -1;}
+
         #if defined(_MSC_VER)
         unsigned long index;
         _BitScanForward64(&index, bitboard);
@@ -275,10 +275,12 @@ private:
 
     bool is_in_check(const Board& board, int color);
 
-
     int32_t perft_rec(const Board& board, int32_t depth);
 
+    Move get_opponent_move(int from_sq, int to_sq, int promo_choice);
+
     int evaluate(const Board& board);
+
 
     int minmax(const Board& board, int depth);
 
@@ -286,25 +288,25 @@ private:
 
     Board board;
 
-protected:
-    static void _bind_methods(); // Exposes C++ functions to GDScript
-
 public:
     ChessEngine();
     ~ChessEngine();
 
+    void set_board_to_startpos();
 
-    void set_board_from_array(const PackedInt32Array& setup_board_array, int32_t side_to_move, int32_t castling_rights);
+    void set_board_from_array(const int32_t* setup_board_array, int32_t side_to_move, int32_t castling_rights);
 
     int get_random_pseudo_legal_move();
 
     int get_random_legal_move();
 
-    int32_t try_move(int32_t from_rank, int32_t from_file, int32_t to_rank, int32_t to_file, int32_t promo_choice);
+    int try_move(int32_t from_rank, int32_t from_file, int32_t to_rank, int32_t to_file, int32_t promo_choice);
+
+    void make_opponent_move(int from_sq, int to_sq, int promo_choice);
 
     int32_t perft(int32_t depth) {return perft_rec(board, depth);};
 
-    int make_best_move(int depth);
+    Move make_best_move(int depth);
 };
 
 }

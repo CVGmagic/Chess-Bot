@@ -1,6 +1,5 @@
 #include "register_types.h"
-#include "chess_engine.h"
-
+#include "godot_engine_wrapper.h"
 #include <gdextension_interface.h>
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/godot.hpp>
@@ -14,7 +13,7 @@ void initialize_chess_module(ModuleInitializationLevel p_level) {
     }
 
     // Register your custom C++ class into Godot's engine database
-    ClassDB::register_class<ChessEngine>();
+    ClassDB::register_class<GodotChessEngineV1>();
 }
 
 void uninitialize_chess_module(ModuleInitializationLevel p_level) {

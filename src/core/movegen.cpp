@@ -1,7 +1,6 @@
 #include "movegen.h"
 #include <vector>
 #include <algorithm>
-#include <intrin.h>
 
 
 // Magic numbers for rooks and bishops

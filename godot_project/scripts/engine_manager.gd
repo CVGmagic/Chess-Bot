@@ -1,14 +1,14 @@
 extends Node
 
 
-var chess_engine: ChessEngine
+var chess_engine: GodotChessEngine
 @onready var chess_board: Control = %ChessBoard
 
 var max_depth: int = 5
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
-	chess_engine = ChessEngine.new()
+	chess_engine = GodotChessEngine.new()
 	set_engine_board(chess_board.board)
 	
 	for i in range(0, 0):
