@@ -67,6 +67,7 @@ func set_engine_board(board: Array[Array]) -> void:
 func try_move(from_rank: int, from_file: int, to_rank: int, to_file: int) -> int:
 	var data: int = chess_engine.try_move(from_rank, from_file, to_rank, to_file, 4)
 	# promo choice set to 4 (queen) by default
+	print(from_rank, to_rank, from_file, to_file)
 	return data
 	
 	

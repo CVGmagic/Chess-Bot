@@ -29,7 +29,7 @@ static const uint8_t castling_rights_update[64] = { // Allows fast castling righ
 
 static const int piece_values[6] = {100, 300, 320, 500, 900, 10000};
 
-static const int mg_table[6][64] = {
+static const int mg_table_pure[6][64] = {
     // [0] PAWN
     {
           0,   0,   0,   0,   0,   0,   0,   0,  // Rank 1 (a1 - h1)
@@ -98,8 +98,7 @@ static const int mg_table[6][64] = {
     }
 };
 
-
-const int eg_table[6][64] = {
+static const int eg_table_pure[6][64] = {
     // [0] PAWN
     {
           0,   0,   0,   0,   0,   0,   0,   0,  // Rank 1 (a1 - h1)
@@ -168,6 +167,147 @@ const int eg_table[6][64] = {
     }
 };
 
+static const int mg_table[6][64] = {
+    // PAWN [0]
+    {
+        100, 100, 100, 100, 100, 100, 100, 100,
+        65, 99, 80, 77, 85, 124, 138, 78,
+        74, 96, 96, 90, 103, 103, 133, 88,
+        73, 98, 95, 112, 117, 106, 110, 75,
+        86, 113, 106, 121, 123, 112, 117, 77,
+        94, 107, 126, 131, 165, 156, 125, 80,
+        198, 234, 161, 195, 168, 226, 134, 89,
+        100, 100, 100, 100, 100, 100, 100, 100
+    },
+    // KNIGHT [1]
+    {
+        195, 279, 242, 267, 283, 272, 281, 277,
+        271, 247, 288, 297, 299, 318, 286, 281,
+        277, 291, 312, 310, 319, 317, 325, 284,
+        287, 304, 316, 313, 328, 319, 321, 292,
+        291, 317, 319, 353, 337, 369, 318, 322,
+        253, 360, 337, 365, 384, 429, 373, 344,
+        227, 259, 372, 336, 323, 362, 307, 283,
+        133, 211, 266, 251, 361, 203, 285, 193
+    },
+    // BISHOP [2]
+    {
+        287, 317, 306, 299, 307, 308, 281, 299,
+        324, 335, 336, 320, 327, 341, 353, 321,
+        320, 335, 335, 335, 334, 347, 338, 330,
+        314, 333, 333, 346, 354, 332, 330, 324,
+        316, 325, 339, 370, 357, 357, 327, 318,
+        304, 357, 363, 360, 355, 370, 357, 318,
+        294, 336, 302, 307, 350, 379, 338, 273,
+        291, 324, 238, 283, 295, 278, 327, 312
+    },
+    // ROOK[3]
+    {
+        481, 487, 501, 517, 516, 507, 463, 474,
+        456, 484, 480, 491, 499, 511, 494, 429,
+        455, 475, 484, 483, 503, 500, 495, 467,
+        464, 474, 488, 499, 509, 493, 506, 477,
+        476, 489, 507, 526, 524, 535, 492, 480,
+        495, 519, 526, 536, 517, 545, 561, 516,
+        527, 532, 558, 562, 580, 567, 526, 544,
+        532, 542, 532, 551, 563, 509, 531, 543
+    },
+    //QUEEN [4]
+    {
+        899, 882, 891, 910, 885, 875, 869, 850,
+        865, 892, 911, 902, 908, 915, 897, 901,
+        886, 902, 889, 898, 895, 902, 914, 905,
+        891, 874, 891, 890, 898, 896, 903, 897,
+        873, 873, 884, 884, 899, 917, 898, 901,
+        887, 883, 907, 908, 929, 956, 947, 957,
+        876, 861, 895, 901, 884, 957, 928, 954,
+        872, 900, 929, 912, 959, 944, 943, 945
+    },
+    // KING [5]
+    {
+        9985, 10036, 10012, 9946, 10008, 9972, 10024, 10014,
+        10001, 10007, 9992, 9936, 9957, 9984, 10009, 10008,
+        9986, 9986, 9978, 9954, 9956, 9970, 9985, 9973,
+        9951, 9999, 9973, 9961, 9954, 9956, 9967, 9949,
+        9983, 9980, 9988, 9973, 9970, 9975, 9986, 9964,
+        9991, 10024, 10002, 9984, 9980, 10006, 10022, 9978,
+        10029, 9999, 9980, 9993, 9992, 9996, 9962, 9971,
+        9935, 10023, 10016, 9985, 9944, 9966, 10002, 10013
+    }
+};
+
+static const int eg_table[6][64] = {
+    // PAWN [0]
+    {
+        100, 100, 100, 100, 100, 100, 100, 100,
+        113, 108, 108, 110, 113, 100, 102, 93,
+        104, 107, 94, 101, 100, 95, 99, 92,
+        113, 109, 97, 93, 93, 92, 103, 99,
+        132, 124, 113, 105, 98, 104, 117, 117,
+        194, 200, 185, 167, 156, 153, 182, 184,
+        278, 273, 258, 234, 247, 232, 265, 287,
+        100, 100, 100, 100, 100, 100, 100, 100
+    },
+    // KNIGHT [1]
+    {
+        271, 249, 277, 285, 278, 282, 250, 236,
+        258, 280, 290, 295, 298, 280, 277, 256,
+        277, 297, 299, 315, 310, 297, 280, 278,
+        282, 294, 316, 325, 316, 317, 304, 282,
+        283, 303, 322, 322, 322, 311, 308, 282,
+        276, 280, 310, 309, 299, 291, 281, 259,
+        275, 292, 275, 298, 291, 275, 276, 248,
+        242, 262, 287, 272, 269, 273, 237, 201
+    },
+    // BISHOP [2]
+    {
+        297, 311, 297, 315, 311, 304, 315, 303,
+        306, 302, 313, 319, 324, 311, 305, 293,
+        308, 317, 328, 330, 333, 323, 313, 305,
+        314, 323, 333, 339, 327, 330, 317, 311,
+        317, 329, 332, 329, 334, 330, 323, 322,
+        322, 312, 320, 319, 318, 326, 320, 324,
+        312, 316, 327, 308, 317, 307, 316, 306,
+        306, 299, 309, 312, 313, 311, 303, 296
+    },
+    // ROOK [3]
+    {
+        491, 502, 503, 499, 495, 487, 504, 480,
+        494, 494, 500, 502, 491, 491, 489, 497,
+        496, 500, 495, 499, 493, 488, 492, 484,
+        503, 505, 508, 504, 495, 494, 492, 489,
+        504, 503, 513, 501, 502, 501, 499, 502,
+        507, 507, 507, 505, 504, 497, 495, 497,
+        511, 513, 513, 511, 497, 503, 508, 503,
+        513, 510, 518, 515, 512, 512, 508, 505
+    },
+    // QUEEN [4]
+    {
+        867, 872, 878, 857, 895, 868, 880, 859,
+        878, 877, 870, 884, 884, 877, 864, 868,
+        884, 873, 915, 906, 909, 917, 910, 905,
+        882, 928, 919, 947, 931, 934, 939, 923,
+        903, 922, 924, 945, 957, 940, 957, 936,
+        880, 906, 909, 949, 947, 935, 919, 909,
+        883, 920, 932, 941, 958, 925, 930, 900,
+        891, 922, 922, 927, 927, 919, 910, 920
+    },
+    // KING [5]
+    {
+        9947, 9966, 9979, 9989, 9972, 9986, 9976, 9957,
+        9973, 9989, 10004, 10013, 10014, 10004, 9995, 9983,
+        9981, 9997, 10011, 10021, 10023, 10016, 10007, 9991,
+        9982, 9996, 10021, 10024, 10027, 10023, 10009, 9989,
+        9992, 10022, 10024, 10027, 10026, 10033, 10026, 10003,
+        10010, 10017, 10023, 10015, 10020, 10045, 10044, 10013,
+        9988, 10017, 10014, 10017, 10017, 10038, 10023, 10011,
+        9926, 9965, 9982, 9982, 9989, 10015, 10004, 9983
+    }
+};
+
+static const int PHASE_VALUES[6] = {0, 1, 1, 2, 4, 0};
+
+static const int SORT_VALUES[6] = { 100, 200, 300, 400, 500, 600 };
 
 enum Square {
     A1, B1, C1, D1, E1, F1, G1, H1,
@@ -275,7 +415,10 @@ struct Board {
 
     uint64_t occupancy[5] = {0}; // 0 = White, 1 = Black, 2 = Both, 3 = Empty, 4 = Friendly
 
-    int material = 0;
+    int mg_score = 0;
+    int eg_score = 0;
+
+    int game_phase = 0; // Goes from 0 (no pieces) to 24 (all pieces)
 
     inline void set_bit(uint64_t &bitboard, int square) { bitboard |= (1ULL << square); }
     inline bool get_bit(uint64_t bitboard, int square) const { return (bitboard & (1ULL << square)) != 0; }
@@ -326,7 +469,9 @@ struct Board {
                 if (bitboards[them][p] & to_mask) {
                     bitboards[them][p] ^= to_mask;
                     // Remove the piece value from black's perspective
-                    (us == WHITE) ? material += (piece_values[p] + mg_table[p][to_sq ^ 56]) : material -= (piece_values[p] + mg_table[p][to_sq]);
+                    mg_score += (us == WHITE) ? (mg_table[p][to_sq ^ 56]) : -(mg_table[p][to_sq]);
+                    eg_score += (us == WHITE) ? (eg_table[p][to_sq ^ 56]) : -(eg_table[p][to_sq]);
+                    game_phase -= PHASE_VALUES[p];
                 }
             }
         }
@@ -337,10 +482,13 @@ struct Board {
         if (move.is_promotion()) {
             int promo_piece = move.get_promo_piece_type();
             bitboards[us][promo_piece] |= to_mask;
-            (us == WHITE) ? material += (-piece_values[piece] + piece_values[promo_piece] - mg_table[piece][from_sq] + mg_table[promo_piece][to_sq]) : material -= (-piece_values[piece] + piece_values[promo_piece] - mg_table[piece][from_sq ^ 56]+ mg_table[promo_piece][to_sq ^ 56]);
+            mg_score += (us == WHITE) ? (-mg_table[PAWN][from_sq] + mg_table[promo_piece][to_sq]) : -(-mg_table[PAWN][from_sq ^ 56] + mg_table[promo_piece][to_sq ^ 56]);
+            eg_score += (us == WHITE) ? (-eg_table[PAWN][from_sq] + eg_table[promo_piece][to_sq]) : -(-eg_table[PAWN][from_sq ^ 56] + eg_table[promo_piece][to_sq ^ 56]);
+            game_phase += (-PHASE_VALUES[PAWN] + PHASE_VALUES[promo_piece]);
         } else {
             bitboards[us][piece] |= to_mask;
-            (us == WHITE) ? material += (- mg_table[piece][from_sq] + mg_table[piece][to_sq]) : material -= (- mg_table[piece][from_sq ^ 56]+ mg_table[piece][to_sq ^ 56]);
+            mg_score += (us == WHITE) ? (-mg_table[piece][from_sq] + mg_table[piece][to_sq]) : -(-mg_table[piece][from_sq ^ 56] + mg_table[piece][to_sq ^ 56]);
+            eg_score += (us == WHITE) ? (-eg_table[piece][from_sq] + eg_table[piece][to_sq]) : -(-eg_table[piece][from_sq ^ 56] + eg_table[piece][to_sq ^ 56]);
         }
 
         // Handle en passant
@@ -349,7 +497,9 @@ struct Board {
             int ep_captured_sq = (us == WHITE) ? (to_sq - 8) : (to_sq + 8);
             ep_mask = 1ULL << ep_captured_sq;
             bitboards[them][PAWN] ^= ep_mask;
-            (us == WHITE) ? material += (piece_values[PAWN] + mg_table[PAWN][(to_sq - 8) ^ 56]) : material -= (piece_values[PAWN] + mg_table[PAWN][to_sq + 8]);
+            mg_score += (us == WHITE) ? (mg_table[PAWN][(en_passant_square - 8) ^ 56]) : -(mg_table[PAWN][en_passant_square + 8]);
+            eg_score += (us == WHITE) ? (eg_table[PAWN][(en_passant_square - 8) ^ 56]) : -(eg_table[PAWN][en_passant_square + 8]);
+            game_phase -= PHASE_VALUES[PAWN];
         }
 
         // Handle double pawn push en passant
@@ -367,24 +517,27 @@ struct Board {
             if (to_sq == G1) { // Short
                 rook_move_mask = ((1ULL << H1) | (1ULL << F1));
                 bitboards[WHITE][ROOK] ^= rook_move_mask;
-                material += (-mg_table[ROOK][H1] + mg_table[ROOK][F1]);
-                
+                mg_score += (-mg_table[ROOK][H1] + mg_table[ROOK][F1]);
+                eg_score += (-eg_table[ROOK][H1] + eg_table[ROOK][F1]);
             }
             else if (to_sq == C1) { // Long
                 rook_move_mask = ((1ULL << A1) | (1ULL << D1));
                 bitboards[WHITE][ROOK] ^= rook_move_mask;
-                material += (-mg_table[ROOK][A1] + mg_table[ROOK][D1]);
+                mg_score += (-mg_table[ROOK][A1] + mg_table[ROOK][D1]);
+                eg_score += (-eg_table[ROOK][A1] + eg_table[ROOK][D1]);
             }
         } else { // us == BLACK
             if (to_sq == G8) { // Short
                 rook_move_mask = ((1ULL << H8) | (1ULL << F8));
                 bitboards[BLACK][ROOK] ^= rook_move_mask;
-                material -= (-mg_table[ROOK][H1] + mg_table[ROOK][F1]); // Use H1 and F1 because it's black's perspective
+                mg_score -= (-mg_table[ROOK][H1] + mg_table[ROOK][F1]); // Use H1 and F1 because it's black's perspective
+                eg_score -= (-eg_table[ROOK][H1] + eg_table[ROOK][F1]);
             }
             else if (to_sq == C8) { // Long
                 rook_move_mask = ((1ULL << A8) | (1ULL << D8));
                 bitboards[BLACK][ROOK] ^= rook_move_mask;
-                material -= (-mg_table[ROOK][A1] + mg_table[ROOK][D1]);
+                mg_score -= (-mg_table[ROOK][A1] + mg_table[ROOK][D1]);
+                eg_score -= (-eg_table[ROOK][A1] + eg_table[ROOK][D1]);
             }
         }
 }
@@ -406,6 +559,12 @@ struct Board {
 
         occupancy[USABLE] = ~occupancy[side_to_move];
     }
+};
+
+
+struct ScoredMove {
+    Move move;
+    int16_t score;
 };
 
 
@@ -467,6 +626,8 @@ private:
         }
     }
 
+    void init_piece_value_tables();
+
     inline int pop_lsb(uint64_t& bitboard) {
         if (bitboard == 0) {return -1;}
 
@@ -502,8 +663,11 @@ private:
 
     std::pair<int, Move> search(const Board& board, int depth, int alpha, int beta);
 
-    Board board;
+    void generate_ordered_moves(const Board& board, std::vector<ScoredMove>& ordered_list);
 
+    uint64_t nodes_searched = 0;
+
+    Board board;
 public:
     ChessEngine();
     ~ChessEngine();
@@ -523,6 +687,8 @@ public:
     int32_t perft(int32_t depth) {return perft_rec(board, depth);};
 
     Move make_best_move(int depth);
+
+    Move find_best_move(int depth);
 };
 
 }

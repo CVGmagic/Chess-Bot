@@ -78,7 +78,7 @@ void apply_uci_move(const string& move_string, ChessCore::ChessEngine& engine) {
 }
 
 
-void parse_position_command(std::stringstream& ss, ChessCore::ChessEngine& engine) {
+void parse_position_command(stringstream& ss, ChessCore::ChessEngine& engine) {
     std::string token;
     ss >> token; // Grab the next word after "position"
 
@@ -110,11 +110,36 @@ void parse_position_command(std::stringstream& ss, ChessCore::ChessEngine& engin
 }
 
 
+void start_search(int depth, ChessCore::ChessEngine& engine) {
+    ChessCore::Move best_move = engine.find_best_move(depth);
+
+    cout << "bestmove " << move_to_uci(best_move) << "\n" << flush;
+}
+
+
+void parse_go_command(stringstream& ss, ChessCore::ChessEngine& engine) {
+    string token;
+
+    int depth = 7;
+    
+    while (ss >> token) {
+        if (token == "depth") {
+            ss >> depth;
+            break;
+        }
+    }
+
+    start_search(depth, engine);
+}
+
+
 int main() {
     ChessCore::ChessEngine engine;
     string line;
 
     while (getline(cin, line)) {
+        // std::cerr << "[ENGINE INBOUND]: " << line << std::endl;
+
         if (line.empty()) {
             continue;
         }
@@ -136,12 +161,7 @@ int main() {
             parse_position_command(ss, engine);
         }
         else if (cmd == "go") {
-            // TODO maybe make search depth time dependent
-            int search_depth = 5;
-
-            ChessCore::Move best_move = engine.make_best_move(search_depth);
-
-            cout << "bestmove " << move_to_uci(best_move) << "\n" << flush;
+            parse_go_command(ss, engine);
         }
         else if (cmd == "quit") {
             break; 

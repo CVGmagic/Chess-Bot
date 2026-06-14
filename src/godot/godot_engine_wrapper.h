@@ -35,11 +35,14 @@ public:
 
 
     int try_move(int32_t from_rank, int32_t from_file, int32_t to_rank, int32_t to_file, int32_t promo_choice) {
+        UtilityFunctions::printerr("Trying move");
         return native_engine.try_move(from_rank, from_file, to_rank, to_file, promo_choice);
     }
 
 
     void set_board_from_array(const PackedInt32Array& setup_board_array, int32_t side_to_move, int32_t castling_rights) {
+        UtilityFunctions::printerr("Board is being set");
+
         if (setup_board_array.size() != 64) {
             UtilityFunctions::printerr("ChessEngine Error: Board array must contain exactly 64 elements!");
             return;
