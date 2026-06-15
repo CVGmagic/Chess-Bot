@@ -27,7 +27,7 @@ public:
 
     int make_best_move(int depth) {
         // Call the decoupled C++ search algorithm directly
-        ChessCore::Move best = native_engine.make_best_move(depth);
+        ChessCore::Move best = native_engine.make_best_move(depth, 100000); // TODO make this not just default to 100s
         
         // Pass the move back out to your GDScript visual manager
         return best.data; 

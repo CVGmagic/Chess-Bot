@@ -24,6 +24,9 @@ ChessEngine::ChessEngine() {
 
     // Initialze zobrist arrays
     Zobrist::initialize();
+
+    // Allocate transposition table memory
+    tt.resize(16); // TODO make this changeble through config.yml
 }
 
 
@@ -517,7 +520,7 @@ void ChessEngine::generate_legal_moves(const Board& board, std::vector<Move>& mo
 }
 
 
-void ChessEngine::generate_ordered_moves(const Board& board, std::vector<ScoredMove>& ordered_list) {
+void ChessEngine::generate_ordered_moves(const Board& board, std::vector<ScoredMove>& ordered_list, Move& move_guess) {
     // Generates and orders all legal moves for a given board
     // TODO Generate pseudo legal first, and only check legality of not pruned
     std::vector<Move> raw_moves;
@@ -537,7 +540,10 @@ void ChessEngine::generate_ordered_moves(const Board& board, std::vector<ScoredM
         uint64_t to_mask = 1ULL << to_sq;
         uint64_t from_mask = 1ULL << from_sq;
 
-        if (move.is_capture()) {
+        if (move.data == move_guess.data) {
+            scored_move.score = 32000; // Almost the int16_t max
+        }
+        else if (move.is_capture()) {
             int attacker = -1;
             int victim = -1;
 
@@ -777,12 +783,35 @@ std::pair<int, Move> ChessEngine::minmax(const Board& board, int depth) {
 }
 
 
-Move ChessEngine::find_best_move(int depth) {
+Move ChessEngine::find_best_move(int max_depth, int max_time_ms) {
     nodes_searched = 0;
-    auto start_time = std::chrono::high_resolution_clock::now();
+    start_time = std::chrono::high_resolution_clock::now();
+    max_time = max_time_ms;
 
-    std::pair<int, Move> res = search(board, 0, depth, -INF, INF);
+    Move best_move_overall;
+    int best_score_overall = -INF;
 
+    for (int current_depth = 1; current_depth <= max_depth; current_depth++) {
+        std::pair<int, Move> res = search(board, 0, current_depth, -INF, INF);
+
+        if (search_aborted) {
+            break; 
+        }
+
+        best_move_overall = res.second;
+        best_score_overall = res.first;
+
+        // 5. Early Exit Heuristic: If we used up more than half our allowed time 
+        // on this depth, we will almost certainly run out of time trying the next one.
+        /*
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
+        if (elapsed > max_time_ms / 2) {
+            break;
+        }
+        */
+    }
+    
     auto end_time = std::chrono::high_resolution_clock::now();
 
     std::chrono::duration<double> elapsed = end_time - start_time;
@@ -790,14 +819,14 @@ Move ChessEngine::find_best_move(int depth) {
     
     std::cerr << "Positions searched: " << nodes_searched << "\n";
     std::cerr << "Time elapsed: " << seconds << "\n";
-    std::cerr << "Nodes per second: " << nodes_searched / seconds << "\n";
+    std::cerr << "Nodes per second: " << (nodes_searched / seconds) << "\n";
 
-    return res.second;
+    return best_move_overall;
 }
 
 
-Move ChessEngine::make_best_move(int depth) {
-    Move best_move = find_best_move(depth);
+Move ChessEngine::make_best_move(int max_depth, int max_time_ms) {
+    Move best_move = find_best_move(max_depth, max_time_ms);
     board.make_move(best_move);
     return best_move;
 }
@@ -806,12 +835,42 @@ Move ChessEngine::make_best_move(int depth) {
 std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth, int alpha, int beta) {
     nodes_searched++;
 
+    int alpha_orig = alpha;
+    int remaining_depth = depth - ply;
+
+    if (nodes_searched % 16384 == 0) {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
+        
+        if (elapsed >= max_time) {
+            search_aborted = true;
+        }
+    }
+
+    if (search_aborted) {
+        return {0, Move(0, 0)};
+    }
+
     if (ply == depth) {
         return {evaluate(board), Move(0, 0)};
     }
 
+    // Use transposition table
+    Move hash_move = Move(0, 0);
+    int tt_score = 0;
+
+    // Check if we have seen this layout before
+    if (tt.lookup(board.zobrist_hash, tt_score, hash_move, remaining_depth, alpha, beta)) {
+        // Make mate depth based again
+        if (tt_score > 28000)  tt_score -= ply;
+        else if (tt_score < -28000) tt_score += ply;
+
+        return {tt_score, hash_move}; 
+    }
+
+
     std::vector<ScoredMove> ordered_moves;
-    generate_ordered_moves(board, ordered_moves);
+    generate_ordered_moves(board, ordered_moves, hash_move);
 
     if (ordered_moves.empty()) {
         if (is_in_check(board, board.side_to_move)) { // Checkmate
@@ -852,12 +911,26 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
         }
 
         if (score >= beta) { // Opponent will never allow this
-            return {score, move.move};
+            break;
         }
 
         if (score > alpha) { // Remember what we have found (pruning occurs one recursion step further)
             alpha = score;
         }
+    }
+
+    uint8_t flag = TT_EXACT;
+    if (best_score <= alpha_orig) flag = TT_ALPHA; // Failed low
+    else if (best_score >= beta)  flag = TT_BETA;  // Failed high
+
+    // Only save the move if we aren't returning a blank dummy move on a cutoff
+    if (!search_aborted) {
+        // Convert mate score to depth based
+        int store_score = best_score;
+        if (store_score > 28000)  store_score += ply;
+        else if (store_score < -28000) store_score -= ply;
+
+        tt.store(board.zobrist_hash, store_score, best_move_at_this_node, remaining_depth, flag);
     }
 
     return {best_score, best_move_at_this_node};

@@ -111,7 +111,7 @@ void parse_position_command(stringstream& ss, ChessCore::ChessEngine& engine) {
 
 
 void start_search(int depth, ChessCore::ChessEngine& engine) {
-    ChessCore::Move best_move = engine.find_best_move(depth);
+    ChessCore::Move best_move = engine.find_best_move(depth, 100000); // TODO change to actully take the time
 
     cout << "bestmove " << move_to_uci(best_move) << "\n" << flush;
 }

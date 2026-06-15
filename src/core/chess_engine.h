@@ -9,6 +9,7 @@
 #include <iostream>
 #include <cmath>
 #include <random>
+#include <chrono>
 
 
 // Compile with:
@@ -698,6 +699,101 @@ struct ScoredMove {
 };
 
 
+enum TTFlag : uint8_t {
+    TT_EXACT,
+    TT_ALPHA, // Upper bound
+    TT_BETA   // Lower bound
+};
+
+
+struct TTEntry {
+    // Stores all important information for a transposition table entry
+
+    uint64_t key;       // 8 bytes: Full Zobrist Hash
+    int32_t  score;     // 4 bytes: Calculated evaluation
+    uint16_t move_raw;  // 2 bytes: Raw integer representation of the Move
+    uint8_t  depth;     // 1 byte:  Search depth achieved
+    uint8_t  flag;      // 1 byte:  TT_EXACT, TT_ALPHA, or TT_BETA
+};
+
+
+class TranspositionTable {
+    private:
+        std::vector<TTEntry> table;
+        size_t entry_count = 0;
+
+    public:
+        // Size should be a power of 2 for ultra-fast bitwise masking!
+        // A table size of 2^20 entries takes roughly 16 Megabytes of RAM.
+        void resize(size_t mega_bytes) {
+            size_t bytes = mega_bytes * 1024 * 1024;
+            entry_count = bytes / sizeof(TTEntry);
+            
+            // Round down to the nearest power of 2
+            size_t p2 = 1;
+            while ((p2 << 1) <= entry_count) {
+                p2 <<= 1; // p2 *= 2
+            }
+            entry_count = p2;
+
+            table.assign(entry_count, TTEntry{0, 0, 0, 0, 0});
+        }
+
+
+        void clear() {
+            table.assign(entry_count, TTEntry{0, 0, 0, 0, 0});
+        }
+
+        // 3. Retrieve a cached position
+        bool lookup(uint64_t hash, int& score, Move& move, int depth, int alpha, int beta) {
+            size_t index = hash & (entry_count - 1); // Squishes all possible hashes in the range entry_count
+            const TTEntry& entry = table[index];
+
+            // Cache Miss: Hash mismatch means either empty slot or a collision
+            if (entry.key != hash) {
+                return false; 
+            }
+
+            // Expose the best move found here regardless of depth (Great for Move Ordering!)
+            move.data = entry.move_raw;
+
+            // Only use the score if the cached depth is deep enough
+            if (entry.depth >= depth) {
+                if (entry.flag == TT_EXACT) {
+                    score = entry.score;
+                    return true;
+                }
+                // If it's an Alpha bound, it's only useful if it's worse than our current alpha
+                if (entry.flag == TT_ALPHA && entry.score <= alpha) {
+                    score = alpha;
+                    return true;
+                }
+                // If it's a Beta bound, it's only useful if it's better than our current beta
+                if (entry.flag == TT_BETA && entry.score >= beta) {
+                    score = beta;
+                    return true;
+                }
+            }
+            return false; // Depth was too shallow to use the score directly
+        }
+
+        // 4. Save a newly calculated position
+        void store(uint64_t hash, int score, const Move& move, int depth, uint8_t flag) {
+            size_t index = hash & (entry_count - 1);
+            
+            // Simple replacement strategy: Overwrite if the new search was deeper
+            // or if the existing slot belongs to a completely different layout.
+            if (table[index].key != hash || depth >= table[index].depth) {
+                table[index].key = hash;
+                table[index].score = score;
+                table[index].move_raw = move.data;
+                table[index].depth = depth;
+                table[index].flag = flag;
+            }
+        }
+    };
+
+
 class ChessEngine {
 private:
     static const uint64_t KNIGHT_ATTACKS[64];
@@ -793,9 +889,14 @@ private:
 
     std::pair<int, Move> search(const Board& board, int ply, int depth, int alpha, int beta);
 
-    void generate_ordered_moves(const Board& board, std::vector<ScoredMove>& ordered_list);
+    void generate_ordered_moves(const Board& board, std::vector<ScoredMove>& ordered_list, Move& move_guess);
 
     uint64_t nodes_searched = 0;
+    bool search_aborted = false;
+    std::chrono::time_point<std::chrono::steady_clock> start_time;
+    int max_time = 0;
+
+    TranspositionTable tt;
 
     Board board;
 public:
@@ -816,9 +917,9 @@ public:
 
     int32_t perft(int32_t depth) {return perft_rec(board, depth);};
 
-    Move make_best_move(int depth);
+    Move make_best_move(int max_depth, int max_time_ms);
 
-    Move find_best_move(int depth);
+    Move find_best_move(int max_depth, int max_time_ms);
 };
 
 }
