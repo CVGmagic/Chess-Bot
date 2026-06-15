@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <iostream>
 #include <cmath>
+#include <random>
 
 
 // Compile with:
@@ -366,6 +367,41 @@ enum MoveFlag {
 
 const int INF = 30000;
 
+
+class Zobrist {
+public:
+    // The random number arrays
+    inline static uint64_t pieces[2][6][64];
+    inline static uint64_t side_to_move;
+    inline static uint64_t castling[16];
+    inline static uint64_t en_passant[8];
+
+    // Call this once at engine startup
+    static void initialize() {
+        // Use a 64-bit Mersenne Twister engine with a fixed seed for consistency
+        std::mt19937_64 rng(1070372); // Any fixed seed works
+
+        for (int color = 0; color < 2; color++) {
+            for (int piece = 0; piece < 6; piece++) {
+                for (int sq = 0; sq < 64; sq++) {
+                    pieces[color][piece][sq] = rng();
+                }
+            }
+        }
+
+        side_to_move = rng();
+
+        for (int i = 0; i < 16; i++) {
+            castling[i] = rng();
+        }
+
+        for (int i = 0; i < 8; i++) {
+            en_passant[i] = rng();
+        }
+    }
+};
+
+
 struct Move {
     uint16_t data = 0;
 
@@ -408,6 +444,7 @@ struct Move {
 
 
 struct Board {
+    // TODO Maybe optimize by swapping some datatypes for faster copy
     uint64_t bitboards[2][6] = {0};
     int side_to_move = 0; // 0 = White, 1 = Black
     int en_passant_square = -1; // -1 = None
@@ -419,6 +456,12 @@ struct Board {
     int eg_score = 0;
 
     int game_phase = 0; // Goes from 0 (no pieces) to 24 (all pieces)
+
+    uint64_t zobrist_hash = 0;
+
+    int halfmove_clock = 0;
+    // Stores only hashes since last reversible move
+    std::vector<uint64_t> reversible_history;
 
     inline void set_bit(uint64_t &bitboard, int square) { bitboard |= (1ULL << square); }
     inline bool get_bit(uint64_t bitboard, int square) const { return (bitboard & (1ULL << square)) != 0; }
@@ -463,6 +506,12 @@ struct Board {
             return;
         }
 
+        // This works because a ^ b ^ b = a
+        zobrist_hash ^= Zobrist::pieces[us][piece][from_sq];
+        // New piece is added later because of possible promotion
+
+        zobrist_hash ^= Zobrist::side_to_move;
+
         // Remove captured pieces 
         if (move.is_capture()) {
             for (int p = 0; p < 6; p++) {
@@ -472,6 +521,7 @@ struct Board {
                     mg_score += (us == WHITE) ? (mg_table[p][to_sq ^ 56]) : -(mg_table[p][to_sq]);
                     eg_score += (us == WHITE) ? (eg_table[p][to_sq ^ 56]) : -(eg_table[p][to_sq]);
                     game_phase -= PHASE_VALUES[p];
+                    zobrist_hash ^= Zobrist::pieces[them][p][to_sq];
                 }
             }
         }
@@ -485,10 +535,12 @@ struct Board {
             mg_score += (us == WHITE) ? (-mg_table[PAWN][from_sq] + mg_table[promo_piece][to_sq]) : -(-mg_table[PAWN][from_sq ^ 56] + mg_table[promo_piece][to_sq ^ 56]);
             eg_score += (us == WHITE) ? (-eg_table[PAWN][from_sq] + eg_table[promo_piece][to_sq]) : -(-eg_table[PAWN][from_sq ^ 56] + eg_table[promo_piece][to_sq ^ 56]);
             game_phase += (-PHASE_VALUES[PAWN] + PHASE_VALUES[promo_piece]);
+            zobrist_hash ^= Zobrist::pieces[us][promo_piece][to_sq];
         } else {
             bitboards[us][piece] |= to_mask;
             mg_score += (us == WHITE) ? (-mg_table[piece][from_sq] + mg_table[piece][to_sq]) : -(-mg_table[piece][from_sq ^ 56] + mg_table[piece][to_sq ^ 56]);
             eg_score += (us == WHITE) ? (-eg_table[piece][from_sq] + eg_table[piece][to_sq]) : -(-eg_table[piece][from_sq ^ 56] + eg_table[piece][to_sq ^ 56]);
+            zobrist_hash ^= Zobrist::pieces[us][piece][to_sq];
         }
 
         // Handle en passant
@@ -497,17 +549,25 @@ struct Board {
             int ep_captured_sq = (us == WHITE) ? (to_sq - 8) : (to_sq + 8);
             ep_mask = 1ULL << ep_captured_sq;
             bitboards[them][PAWN] ^= ep_mask;
-            mg_score += (us == WHITE) ? (mg_table[PAWN][(en_passant_square - 8) ^ 56]) : -(mg_table[PAWN][en_passant_square + 8]);
-            eg_score += (us == WHITE) ? (eg_table[PAWN][(en_passant_square - 8) ^ 56]) : -(eg_table[PAWN][en_passant_square + 8]);
+            mg_score += (us == WHITE) ? (mg_table[PAWN][ep_captured_sq ^ 56]) : -(mg_table[PAWN][ep_captured_sq]);
+            eg_score += (us == WHITE) ? (eg_table[PAWN][ep_captured_sq ^ 56]) : -(eg_table[PAWN][ep_captured_sq]);
             game_phase -= PHASE_VALUES[PAWN];
+            zobrist_hash ^= Zobrist::pieces[them][PAWN][ep_captured_sq];
         }
 
         // Handle double pawn push en passant
+        if (en_passant_square != -1) {
+            zobrist_hash ^= Zobrist::en_passant[en_passant_square % 8];
+        }
         if (move.is_double_pawn_push()) {
             en_passant_square = (us == WHITE) ? (from_sq + 8) : (from_sq - 8);
         } else {
             en_passant_square = -1;
         }
+        if (en_passant_square != -1) {
+            zobrist_hash ^= Zobrist::en_passant[en_passant_square % 8];
+        }
+        
 
         // Handle castling
         bool is_castle = (piece == KING) && (abs(to_sq - from_sq) == 2);
@@ -519,12 +579,16 @@ struct Board {
                 bitboards[WHITE][ROOK] ^= rook_move_mask;
                 mg_score += (-mg_table[ROOK][H1] + mg_table[ROOK][F1]);
                 eg_score += (-eg_table[ROOK][H1] + eg_table[ROOK][F1]);
+                zobrist_hash ^= Zobrist::pieces[WHITE][ROOK][H1];
+                zobrist_hash ^= Zobrist::pieces[WHITE][ROOK][F1];
             }
             else if (to_sq == C1) { // Long
                 rook_move_mask = ((1ULL << A1) | (1ULL << D1));
                 bitboards[WHITE][ROOK] ^= rook_move_mask;
                 mg_score += (-mg_table[ROOK][A1] + mg_table[ROOK][D1]);
                 eg_score += (-eg_table[ROOK][A1] + eg_table[ROOK][D1]);
+                zobrist_hash ^= Zobrist::pieces[WHITE][ROOK][A1];
+                zobrist_hash ^= Zobrist::pieces[WHITE][ROOK][D1];
             }
         } else { // us == BLACK
             if (to_sq == G8) { // Short
@@ -532,18 +596,31 @@ struct Board {
                 bitboards[BLACK][ROOK] ^= rook_move_mask;
                 mg_score -= (-mg_table[ROOK][H1] + mg_table[ROOK][F1]); // Use H1 and F1 because it's black's perspective
                 eg_score -= (-eg_table[ROOK][H1] + eg_table[ROOK][F1]);
+                zobrist_hash ^= Zobrist::pieces[BLACK][ROOK][H8];
+                zobrist_hash ^= Zobrist::pieces[BLACK][ROOK][F8];
             }
             else if (to_sq == C8) { // Long
                 rook_move_mask = ((1ULL << A8) | (1ULL << D8));
                 bitboards[BLACK][ROOK] ^= rook_move_mask;
                 mg_score -= (-mg_table[ROOK][A1] + mg_table[ROOK][D1]);
                 eg_score -= (-eg_table[ROOK][A1] + eg_table[ROOK][D1]);
+                zobrist_hash ^= Zobrist::pieces[BLACK][ROOK][A8];
+                zobrist_hash ^= Zobrist::pieces[BLACK][ROOK][D8];
             }
         }
 }
         // Update castling rights
+        int castling_rights_before = castling_rights;
+        
         castling_rights &= castling_rights_update[from_sq];
         castling_rights &= castling_rights_update[to_sq];
+        
+        bool castling_rights_changed = (castling_rights_before != castling_rights);
+        
+        if (castling_rights_changed) {
+            zobrist_hash ^= Zobrist::castling[castling_rights_before];
+            zobrist_hash ^= Zobrist::castling[castling_rights];
+        }
 
         // Rebuild occupancy
         occupancy[us] ^= (is_castle) ? (move_mask | rook_move_mask) : move_mask;
@@ -558,6 +635,59 @@ struct Board {
         side_to_move ^= 1;
 
         occupancy[USABLE] = ~occupancy[side_to_move];
+        
+        // Update clock and move history for draw by repetition and 50 move rule
+        if (piece == PAWN || move.is_capture()) {
+            reversible_history.clear();
+            halfmove_clock = -1;
+        } else if (castling_rights_changed) {
+            reversible_history.clear();
+        }
+        reversible_history.push_back(zobrist_hash);
+        halfmove_clock++;
+    }
+
+    uint64_t compute_zobrist_hash() const {
+        uint64_t hash = 0;
+
+        // 1. XOR all pieces currently on the board
+        for (int sq = 0; sq < 64; sq++) {
+            uint64_t mask = 1ULL << sq;
+            int found_piece = -1;
+            int found_color = -1;
+
+            // Scan your bitboards to see what is on this square
+            for (int c = 0; c < 2; c++) {
+                for (int p = 0; p < 6; p++) {
+                    if (bitboards[c][p] & mask) {
+                        found_piece = p;
+                        found_color = c;
+                        break;
+                    }
+                }
+            }
+
+            // If a piece is there, XOR its unique random number into the hash
+            if (found_piece != -1) {
+                hash ^= Zobrist::pieces[found_color][found_piece][sq];
+            }
+        }
+
+        // 2. XOR the side to move if it's Black
+        if (side_to_move == BLACK) {
+            hash ^= Zobrist::side_to_move;
+        }
+
+        // 3. XOR castling rights (0 to 15 index depending on rights flags)
+        hash ^= Zobrist::castling[castling_rights];
+
+        // 4. XOR en passant file if a capture is legally available
+        if (en_passant_square != -1) {
+            int file = en_passant_square % 8;
+            hash ^= Zobrist::en_passant[file];
+        }
+
+        return hash;
     }
 };
 
@@ -661,7 +791,7 @@ private:
 
     std::pair<int, Move> minmax(const Board& board, int depth);
 
-    std::pair<int, Move> search(const Board& board, int depth, int alpha, int beta);
+    std::pair<int, Move> search(const Board& board, int ply, int depth, int alpha, int beta);
 
     void generate_ordered_moves(const Board& board, std::vector<ScoredMove>& ordered_list);
 

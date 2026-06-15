@@ -15,12 +15,15 @@ ChessEngine::ChessEngine() {
         sliding_lookup_initialised = true; 
     }
 
-    // Initialise between matrix
+    // Initialize between matrix
     static bool between_matrix_initialised = false;
     if (!between_matrix_initialised) {
         init_between_matrix();
         between_matrix_initialised = true;
     }
+
+    // Initialze zobrist arrays
+    Zobrist::initialize();
 }
 
 
@@ -249,6 +252,8 @@ void ChessEngine::set_board_to_startpos() {
             b.game_phase += PHASE_VALUES[p] * 2; // For the 2 players
         }
 
+        b.zobrist_hash = b.compute_zobrist_hash();
+
         // Rebuild all initial occupancy masks
         for (int p = 0; p < 6; p++) {
             b.occupancy[WHITE] |= b.bitboards[WHITE][p];
@@ -361,6 +366,8 @@ void ChessEngine::set_board_from_array(const int32_t* raw_squares, int32_t side_
 
     board.side_to_move = side_to_move;
     board.castling_rights = castling_rights;
+
+    board.zobrist_hash = board.compute_zobrist_hash();
 
     int other_side = side_to_move ^ 1;
 
@@ -774,7 +781,7 @@ Move ChessEngine::find_best_move(int depth) {
     nodes_searched = 0;
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    std::pair<int, Move> res = search(board, depth, -INF, INF);
+    std::pair<int, Move> res = search(board, 0, depth, -INF, INF);
 
     auto end_time = std::chrono::high_resolution_clock::now();
 
@@ -796,10 +803,10 @@ Move ChessEngine::make_best_move(int depth) {
 }
 
 
-std::pair<int, Move> ChessEngine::search(const Board& board, int depth, int alpha, int beta) {
+std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth, int alpha, int beta) {
     nodes_searched++;
 
-    if (depth == 0) {
+    if (ply == depth) {
         return {evaluate(board), Move(0, 0)};
     }
 
@@ -808,11 +815,28 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int depth, int alph
 
     if (ordered_moves.empty()) {
         if (is_in_check(board, board.side_to_move)) { // Checkmate
-            return {-29000 - depth, Move(0, 0)}; // Make further checkmates better
+            return {-29000 + ply, Move(0, 0)}; // Make further checkmates better
         }
         return {0, Move(0, 0)}; // Stalemate
     }
-
+    // Draw by repetition or 50 move rule
+    if (ply > 0) {
+        if (board.halfmove_clock >= 100) {
+        return {0, Move(0, 0)};
+        }
+        int same_pos_count = 0;
+        for (int i = 0; i + 1 < board.reversible_history.size(); i++) {
+            if (board.reversible_history[i] == board.zobrist_hash) {
+                same_pos_count++;
+            }
+        }
+        // This detects if the position has occurred before
+        // Not technically draw, but computer shouldn't just shuffle pieces back and forth
+        if (same_pos_count >= 1) {
+            return {0, Move(0, 0)};
+        }
+    }
+    
     Move best_move_at_this_node;
     int best_score = -INF;
 
@@ -820,8 +844,8 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int depth, int alph
         Board simulated_board = board;
         simulated_board.make_move(move.move);
 
-        int score = -search(simulated_board, depth - 1, -beta, -alpha).first;
-
+        int score = -search(simulated_board, ply + 1, depth, -beta, -alpha).first;
+    
         if (score > best_score) {
             best_score = score;
             best_move_at_this_node = move.move;
