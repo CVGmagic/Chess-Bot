@@ -368,6 +368,7 @@ enum MoveFlag {
 
 const int INF = 30000;
 
+extern bool TT_DEBUG;
 
 class Zobrist {
 public:
@@ -460,13 +461,12 @@ struct Board {
 
     uint64_t zobrist_hash = 0;
 
+    // TODO Can be optimized by making halfmove_clock global
     int halfmove_clock = 0;
-    // Stores only hashes since last reversible move
-    std::vector<uint64_t> reversible_history;
 
     inline void set_bit(uint64_t &bitboard, int square) { bitboard |= (1ULL << square); }
     inline bool get_bit(uint64_t bitboard, int square) const { return (bitboard & (1ULL << square)) != 0; }
-    inline void clear_bit(uint64_t &bitboard, int square) { bitboard &= ~(1ULL << square); }
+    inline void clear_bit(uint64_t &bitboard, int square) { bitboard &= ~(1ULL << square);}
     
     void clear() {
         for (int color = 0; color < 2; ++color) {
@@ -481,6 +481,14 @@ struct Board {
         for (int i = 0; i < 5; ++i) {
             occupancy[i] = 0ULL;
         }
+
+        mg_score = 0;
+        eg_score = 0;
+        game_phase = 0;
+
+        halfmove_clock = 0;
+
+        zobrist_hash = 0;
     }
 
     void make_move(Move move) {
@@ -557,7 +565,7 @@ struct Board {
         }
 
         // Handle double pawn push en passant
-        if (en_passant_square != -1) {
+        if (en_passant_square != -1) { // Remove previous square
             zobrist_hash ^= Zobrist::en_passant[en_passant_square % 8];
         }
         if (move.is_double_pawn_push()) {
@@ -565,7 +573,7 @@ struct Board {
         } else {
             en_passant_square = -1;
         }
-        if (en_passant_square != -1) {
+        if (en_passant_square != -1) { // Add new square
             zobrist_hash ^= Zobrist::en_passant[en_passant_square % 8];
         }
         
@@ -639,12 +647,8 @@ struct Board {
         
         // Update clock and move history for draw by repetition and 50 move rule
         if (piece == PAWN || move.is_capture()) {
-            reversible_history.clear();
             halfmove_clock = -1;
-        } else if (castling_rights_changed) {
-            reversible_history.clear();
         }
-        reversible_history.push_back(zobrist_hash);
         halfmove_clock++;
     }
 
@@ -702,7 +706,7 @@ struct ScoredMove {
 enum TTFlag : uint8_t {
     TT_EXACT,
     TT_ALPHA, // Upper bound
-    TT_BETA   // Lower bound
+    TT_BETA  // Lower bound
 };
 
 
@@ -745,12 +749,17 @@ class TranspositionTable {
         }
 
         // 3. Retrieve a cached position
-        bool lookup(uint64_t hash, int& score, Move& move, int depth, int alpha, int beta) {
+        bool lookup(uint64_t hash, int& score, Move& move, int remaining_depth, int alpha, int beta) {
             size_t index = hash & (entry_count - 1); // Squishes all possible hashes in the range entry_count
             const TTEntry& entry = table[index];
 
             // Cache Miss: Hash mismatch means either empty slot or a collision
             if (entry.key != hash) {
+                /*
+                std::cerr << "TT MISS key mismatch idx=" << index 
+                  << " stored=" << entry.key 
+                  << " lookup=" << hash << "\n";
+                */
                 return false; 
             }
 
@@ -758,23 +767,37 @@ class TranspositionTable {
             move.data = entry.move_raw;
 
             // Only use the score if the cached depth is deep enough
-            if (entry.depth >= depth) {
-                if (entry.flag == TT_EXACT) {
-                    score = entry.score;
-                    return true;
-                }
-                // If it's an Alpha bound, it's only useful if it's worse than our current alpha
-                if (entry.flag == TT_ALPHA && entry.score <= alpha) {
-                    score = alpha;
-                    return true;
-                }
-                // If it's a Beta bound, it's only useful if it's better than our current beta
-                if (entry.flag == TT_BETA && entry.score >= beta) {
-                    score = beta;
-                    return true;
-                }
+            if (entry.depth < remaining_depth) {
+                return false;
             }
-            return false; // Depth was too shallow to use the score directly
+            /*
+            if (TT_DEBUG) {
+                std::cerr << "TT lookup idx=" << index << " key=" << hash << " entry.key=" << entry.key
+                            << " req_depth=" << depth << " ent_depth=" << (int)entry.depth << " flag=" << (int)entry.flag
+                            << " ent_score=" << entry.score << " alpha=" << alpha << " beta=" << beta << "\n";
+            }*/
+            if (entry.flag == TT_EXACT) {
+                score = entry.score;
+                return true;
+            }
+            // If it's an Alpha bound, it's only useful if it's worse than our current alpha
+            else if (entry.flag == TT_ALPHA && entry.score <= alpha) {
+                score = entry.score;
+                return true;
+            }
+            // If it's a Beta bound, it's only useful if it's better than our current beta
+            else if (entry.flag == TT_BETA && entry.score >= beta) {
+                score = entry.score;
+                return true;
+            }
+            else {
+                /*
+                if (entry.flag != TT_ALPHA && entry.flag != TT_BETA) {
+                    std::cerr << "Invalid tt flag " << (int)entry.flag << " encountered\n";
+                }
+                */
+                return false; // TODO change this back to entry.score
+            }
         }
 
         // 4. Save a newly calculated position
@@ -789,6 +812,11 @@ class TranspositionTable {
                 table[index].move_raw = move.data;
                 table[index].depth = depth;
                 table[index].flag = flag;
+                /*
+                if (TT_DEBUG) {
+                    std::cerr << "TT store idx=" << index << " key=" << hash << " depth=" << depth << " flag=" << (int)flag << " score=" << score << " move=" << move.data << "\n";
+                }
+                */
             }
         }
     };
@@ -871,7 +899,7 @@ private:
 
     void generate_pseudo_legal_moves(const Board& board, std::vector<Move>& move_list);
 
-    void generate_legal_moves(const Board& board, std::vector<Move>& move_list);
+    void generate_legal_moves(const Board& board, std::vector<Move>& move_list, std::vector<Move>& pseudo_moves);
 
     bool is_square_attacked(const Board& board, int square, int enemy_color);
 
@@ -889,7 +917,7 @@ private:
 
     std::pair<int, Move> search(const Board& board, int ply, int depth, int alpha, int beta);
 
-    void generate_ordered_moves(const Board& board, std::vector<ScoredMove>& ordered_list, Move& move_guess);
+    void generate_ordered_moves(const Board& board, std::vector<ScoredMove>& ordered_list, Move& move_guess, std::vector<Move>& pseudo_moves, std::vector<Move>& raw_moves);
 
     uint64_t nodes_searched = 0;
     bool search_aborted = false;
@@ -897,6 +925,14 @@ private:
     int max_time = 0;
 
     TranspositionTable tt;
+
+    // Allocate memory beforehand, up to depth 100, for huge performance gain
+    std::vector<ScoredMove> move_pool[100]; std::vector<Move> pseudo_move_pool[100];
+    std::vector<Move> raw_move_pool[100];
+
+    // 
+    uint64_t history_stack[2048];
+    int history_pointer = 0; // Index of the first free element in history_stack
 
     Board board;
 public:
@@ -915,11 +951,18 @@ public:
 
     void make_opponent_move(int from_sq, int to_sq, int promo_choice);
 
+    void reset_state();
+
     int32_t perft(int32_t depth) {return perft_rec(board, depth);};
 
     Move make_best_move(int max_depth, int max_time_ms);
 
     Move find_best_move(int max_depth, int max_time_ms);
+
+    // Diagnostics
+    bool test_zobrist_consistency(int max_moves);
+
+    Move debug_search_with_tt(int max_depth, int max_time_ms);
 };
 
 }

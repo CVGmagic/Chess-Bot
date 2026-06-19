@@ -4,7 +4,7 @@ extends Node
 var chess_engine: GodotChessEngine
 @onready var chess_board: Control = %ChessBoard
 
-var max_depth: int = 5
+var max_depth: int = 6
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:

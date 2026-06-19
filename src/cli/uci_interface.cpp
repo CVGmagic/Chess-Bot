@@ -1,9 +1,88 @@
 #include <iostream>
 #include <string>
+#include <map>
 #include <sstream>
 #include <vector>
 #include "../core/chess_engine.h"
 using namespace std;
+
+
+enum GodotPieces{
+    EMPTY_PIECE,
+    WHITE_PAWN,
+    WHITE_KNIGHT,
+    WHITE_BISHOP,
+    WHITE_ROOK,
+    WHITE_QUEEN,
+    WHITE_KING,
+    BLACK_PAWN,
+    BLACK_KNIGHT,
+    BLACK_BISHOP,
+    BLACK_ROOK,
+    BLACK_QUEEN,
+    BLACK_KING
+};
+
+
+int32_t fen_char_to_id(char c) {
+    switch(c) {
+        case 'P': return WHITE_PAWN;   case 'N': return WHITE_KNIGHT;
+        case 'B': return WHITE_BISHOP; case 'R': return WHITE_ROOK;
+        case 'Q': return WHITE_QUEEN;  case 'K': return WHITE_KING;
+        case 'p': return BLACK_PAWN;   case 'n': return BLACK_KNIGHT;
+        case 'b': return BLACK_BISHOP; case 'r': return BLACK_ROOK;
+        case 'q': return BLACK_QUEEN;  case 'k': return BLACK_KING;
+        default: return 0; // Empty square
+    }
+}
+
+
+void parse_fen_to_engine(std::string fen, ChessCore::ChessEngine& engine) {
+    std::cerr << "parsing fen " << fen << "\n";
+    int32_t raw_squares[64] = {0};
+    
+    // Split FEN by spaces
+    std::stringstream ss(fen);
+    std::string piece_part, turn_part, castle_part;
+    ss >> piece_part >> turn_part >> castle_part;
+
+    // 1. Fill raw_squares
+    int rank = 7; // Start at rank 8 (top of FEN)
+    int file = 0;
+    for (char c : piece_part) {
+        if (c == '/') {
+            rank--;
+            file = 0;
+        } else if (isdigit(c)) {
+            file += (c - '0');
+        } else {
+            // Map 2D (rank, file) to 1D array index
+            int index = rank * 8 + file;
+            raw_squares[index] = fen_char_to_id(c);
+            file++;
+        }
+    }
+
+    // 2. Parse turn
+    int32_t side = -1;
+    if (turn_part == "w") {
+        side = 0;
+    } else if (turn_part == "b") {
+        side = 1;
+    } else {
+        std::cerr << "Unexpected turn part " << turn_part << " encountered\n";
+    }
+
+    // 3. Parse simple castling rights (example for KQkq)
+    int32_t rights = 0;
+    if (castle_part.find('K') != std::string::npos) rights |= 0b0001;
+    if (castle_part.find('Q') != std::string::npos) rights |= 0b0010;
+    if (castle_part.find('k') != std::string::npos) rights |= 0b0100;
+    if (castle_part.find('q') != std::string::npos) rights |= 0b1000;
+
+    // Finally, pass to your existing function
+    engine.set_board_from_array(raw_squares, side, rights);
+}
 
 
 int uci_square_to_square(const string& square_string) {
@@ -89,14 +168,24 @@ void parse_position_command(stringstream& ss, ChessCore::ChessEngine& engine) {
     } 
     else if (token == "fen") {
         // 1. Reconstruct and parse the 6 FEN tokens
-        std::string fen_string = "";
-        for (int i = 0; i < 6; ++i) {
-            std::string part;
-            ss >> part;
-            fen_string += part + " ";
+        std::string full_fen = "";
+
+        // Lies ein Wort nach dem anderen aus dem stringstream
+        while (ss >> token) {
+            // Wenn das Wort "moves" kommt, gehört der Rest nicht mehr zur FEN
+            if (token == "moves") {
+                break; 
+            }
+            
+            // Füge die Teile mit einem Leerzeichen dazwischen zusammen
+            if (!full_fen.empty()) {
+                full_fen += " ";
+            }
+            full_fen += token;
         }
-        // engine.set_board_from_fen(fen_string);
-        ss >> token; // Check if the next word is "moves"
+
+// Jetzt enthält 'full_fen' die komplette korrekte FEN!
+parse_fen_to_engine(full_fen, engine);
     }
 
     // 2. Play through historical moves sequentially if present
@@ -110,8 +199,8 @@ void parse_position_command(stringstream& ss, ChessCore::ChessEngine& engine) {
 }
 
 
-void start_search(int depth, ChessCore::ChessEngine& engine) {
-    ChessCore::Move best_move = engine.find_best_move(depth, 100000); // TODO change to actully take the time
+void start_search(int depth, int max_time_ms, ChessCore::ChessEngine& engine) {
+    ChessCore::Move best_move = engine.debug_search_with_tt(depth, max_time_ms);
 
     cout << "bestmove " << move_to_uci(best_move) << "\n" << flush;
 }
@@ -121,15 +210,18 @@ void parse_go_command(stringstream& ss, ChessCore::ChessEngine& engine) {
     string token;
 
     int depth = 7;
+    int max_time_ms = 100'000;
     
     while (ss >> token) {
         if (token == "depth") {
             ss >> depth;
-            break;
+        }
+        else if (token == "movetime") {
+            ss >> max_time_ms;
         }
     }
 
-    start_search(depth, engine);
+    start_search(depth, max_time_ms, engine);
 }
 
 
@@ -154,6 +246,9 @@ int main() {
             cout << "id author Caius Grobbel\n";
             cout << "uciok\n" << flush;
         }
+        else if (cmd == "ucinewgame") {
+            engine.reset_state();
+        }
         else if (cmd == "isready") {
             cout << "readyok\n" << flush;
         }
@@ -167,7 +262,7 @@ int main() {
             break; 
         }
         else {
-            cerr << "Unknown command encountered\n";
+            cerr << "Unknown command " << cmd << " encountered\n";
         }
     }
 }
