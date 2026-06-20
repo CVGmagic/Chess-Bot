@@ -272,6 +272,114 @@ void ChessEngine::generate_pseudo_legal_moves(const Board& board, std::vector<Mo
 }
 
 
+void ChessEngine::generate_pseudo_legal_captures(const Board& board, std::vector<Move>& move_list) {
+    // Generates only pseudo legal captures
+    // TODO Can probably be optimized by replacing occupancy[NEITHER] with ~occupancy[BOTH]
+    // This requires less memory with only slightly more computation
+
+    // Determine which side we are
+    int us = board.side_to_move;
+    int them = us ^ 1;
+
+    // Map out the enemy and friendly pieces and all squares
+
+    // GENERATE LEGAL PAWN MOVES
+    uint64_t pawns = board.bitboards[us][PAWN];
+    while (pawns) {
+        int from_sq = pop_lsb(pawns);
+
+        // Start with attacks
+        uint64_t raw_attacks = get_pawn_attacks(us, from_sq);
+        uint64_t standard_captures = raw_attacks & board.occupancy[them];
+        while (standard_captures) {
+            int to_sq = pop_lsb(standard_captures);
+            // Check for promotion
+            if ((us == WHITE && to_sq >= 56) || (us == BLACK && to_sq <= 7)) {
+                move_list.push_back(Move(from_sq, to_sq, FLAG_PROMO_CAPTURE_N));
+                move_list.push_back(Move(from_sq, to_sq, FLAG_PROMO_CAPTURE_B));
+                move_list.push_back(Move(from_sq, to_sq, FLAG_PROMO_CAPTURE_R));
+                move_list.push_back(Move(from_sq, to_sq, FLAG_PROMO_CAPTURE_Q));
+            } else {
+                move_list.push_back(Move(from_sq, to_sq, FLAG_CAPTURE));
+            }
+        }
+        if (board.en_passant_square != -1) {
+            uint64_t ep_bit = 1ULL << board.en_passant_square;
+            if (raw_attacks & ep_bit) {
+                move_list.push_back(Move(from_sq, board.en_passant_square, FLAG_EN_PASSANT));
+            }
+        }
+        // Also include promotions
+        if (us == WHITE) {
+            int forward_sq = from_sq + 8;
+            // If the forward square is empty and lands on the 8th rank
+            if (forward_sq >= 56 && ((1ULL << forward_sq) & board.occupancy[NEITHER])) {
+                // Include only Queen and Knight promos, as others are very rarely tactical
+                move_list.push_back(Move(from_sq, forward_sq, FLAG_PROMO_QUEEN));
+                move_list.push_back(Move(from_sq, forward_sq, FLAG_PROMO_KNIGHT));
+            }
+        } else { // BLACK
+            int forward_sq = from_sq - 8;
+            // If the forward square is empty and lands on the 1st rank
+            if (forward_sq <= 7 && ((1ULL << forward_sq) & board.occupancy[NEITHER])) {
+                move_list.push_back(Move(from_sq, forward_sq, FLAG_PROMO_QUEEN));
+                move_list.push_back(Move(from_sq, forward_sq, FLAG_PROMO_KNIGHT));
+            }
+        }
+    }
+
+    // GENERATE LEGAL KNIGHT MOVES
+    uint64_t knights = board.bitboards[us][KNIGHT];
+    while (knights) {
+        int from_sq = pop_lsb(knights);
+        uint64_t raw_attacks = get_knight_attacks(from_sq, board.occupancy[USABLE]);
+
+        uint64_t captures = raw_attacks & board.occupancy[them];
+        while (captures) {move_list.push_back(Move(from_sq, pop_lsb(captures), FLAG_CAPTURE));}
+    }
+
+    // GENERATE LEGAL BISHOP MOVES
+    uint64_t bishops = board.bitboards[us][BISHOP];
+    while (bishops) {
+        int from_sq = pop_lsb(bishops);
+        uint64_t raw_attacks = get_bishop_attacks(from_sq, board.occupancy[BOTH], board.occupancy[USABLE]);
+
+        uint64_t captures = raw_attacks & board.occupancy[them];
+        while (captures) {move_list.push_back(Move(from_sq, pop_lsb(captures), FLAG_CAPTURE));}
+    }
+
+    // GENERATE LEGAL ROOK MOVES
+    uint64_t rooks = board.bitboards[us][ROOK];
+    while (rooks) {
+        int from_sq = pop_lsb(rooks);
+        uint64_t raw_attacks = get_rook_attacks(from_sq, board.occupancy[BOTH], board.occupancy[USABLE]);
+
+        uint64_t captures = raw_attacks & board.occupancy[them];
+        while (captures) {move_list.push_back(Move(from_sq, pop_lsb(captures), FLAG_CAPTURE));}
+    }
+
+    // GENERATE LEGAL QUEEN MOVES
+    uint64_t queens = board.bitboards[us][QUEEN];
+    while (queens) {
+        int from_sq = pop_lsb(queens);
+        uint64_t raw_attacks = get_queen_attacks(from_sq, board.occupancy[BOTH], board.occupancy[USABLE]);
+
+        uint64_t captures = raw_attacks & board.occupancy[them];
+        while (captures) {move_list.push_back(Move(from_sq, pop_lsb(captures), FLAG_CAPTURE));}
+    }
+
+    // GENERATE LEGAL KING MOVES
+    uint64_t king_bitboard = board.bitboards[us][KING];
+    if (king_bitboard) { // If the King exists
+        int king_square = pop_lsb(king_bitboard);
+        uint64_t raw_attacks = get_king_attacks(king_square, board.occupancy[USABLE]);
+
+        uint64_t captures = raw_attacks & board.occupancy[them];
+        while (captures) {move_list.push_back(Move(king_square, pop_lsb(captures), FLAG_CAPTURE));}
+    }
+}
+
+
 void ChessEngine::set_board_to_startpos() {
     static const Board START_BOARD = []() {
         Board b;
@@ -663,6 +771,54 @@ void ChessEngine::generate_ordered_moves(const Board& board, std::vector<ScoredM
 }
 
 
+void ChessEngine::output_sorted_captures(const Board& board, std::vector<Move>& captures, std::vector<ScoredMove>& ordered_list) {
+    // TODO Optimize by adding instant lookup piece array to the chess board
+    int us = board.side_to_move;
+    int them = us ^ 1;
+
+    for (const Move& capture : captures) {
+        ScoredMove scored_capture;
+        scored_capture.move = capture;
+        scored_capture.score = 10000;
+
+        int from_sq = capture.get_from();
+        int to_sq = capture.get_to();
+        uint64_t to_mask = 1ULL << to_sq;
+        uint64_t from_mask = 1ULL << from_sq;
+
+        int attacker = -1;
+        int victim = -1;
+
+        if (capture.is_en_passant()) {
+                attacker = PAWN;
+                victim = PAWN;
+            }
+        else {
+            for (int p = 0; p < 6; p++) {
+                if (board.bitboards[us][p] & from_mask) {
+                    attacker = p;
+                    break;
+                }
+            }
+
+            for (int p = 0; p < 6; p++) {
+                if (board.bitboards[them][p] & to_mask) {
+                    victim = p;
+                    break;
+                }
+            }
+        }
+
+        scored_capture.score += SORT_VALUES[victim] * 10 - SORT_VALUES[attacker];
+
+        ordered_list.push_back(scored_capture);
+    }
+    std::sort(ordered_list.begin(), ordered_list.end(), [](const ScoredMove& a, const ScoredMove& b) {
+        return a.score > b.score;
+    });
+}
+
+
 int ChessEngine::try_move(int32_t from_rank, int32_t from_file, int32_t to_rank, int32_t to_file, int32_t promo_choice) {
     int from_sq = from_rank * 8 + from_file;
     int to_sq = to_rank * 8 + to_file;
@@ -896,6 +1052,70 @@ Move ChessEngine::make_best_move(int max_depth, int max_time_ms) {
 }
 
 
+int ChessEngine::quiescence(const Board& board, int ply, int alpha, int beta) {
+    // Static eval (stand pat)
+    int static_eval = evaluate(board);
+    
+    if (ply >= 99) { // Break before searching too deep and breaking move pool
+        return static_eval;
+    }
+
+    // Alpha-Beta-Pruning with static eval
+    if (static_eval >= beta) {
+        return beta; 
+    }
+    if (static_eval > alpha) {
+        alpha = static_eval; 
+    }
+
+    // Generate only pseudo legal captures
+    std::vector<Move>& pseudo_captures = pseudo_move_pool[ply];
+    pseudo_captures.clear();
+
+    generate_pseudo_legal_captures(board, pseudo_captures); 
+
+    std::vector<ScoredMove>& sorted_captures = move_pool[ply];
+    sorted_captures.clear();
+
+    // Sort captures according to MVV/LVA
+    output_sorted_captures(board, pseudo_captures, sorted_captures);
+
+    uint64_t king_bitboard = board.bitboards[board.side_to_move][KING];
+    int king_sq = pop_lsb(king_bitboard);
+    uint64_t pin_mask = get_absolute_pins(board, king_sq);
+    bool in_check = is_in_check(board, board.side_to_move);
+
+
+    for (const ScoredMove& scored_move : sorted_captures) {
+        int from = scored_move.move.get_from();
+        int to = scored_move.move.get_to();
+
+        Board simulated_board = board;
+        simulated_board.make_move(scored_move.move);
+
+        // If we're in check or it's en passant, we use the Fallback
+        if (from == king_sq || in_check || scored_move.move.get_flag() == FLAG_EN_PASSANT || pin_mask & (1ULL << from)) {
+            if (is_in_check(simulated_board, board.side_to_move)) {
+                continue;
+            }
+        }
+
+        int score = -quiescence(simulated_board, ply + 1, -beta, -alpha);
+
+        // Alpha-Beta
+        if (score >= beta) {
+            return beta;
+        }
+        if (score > alpha) {
+            alpha = score;
+        }
+    }
+
+    return alpha;
+}
+
+
+
 std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth, int alpha, int beta) {
     nodes_searched++;
 
@@ -916,8 +1136,8 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
     }
 
     if (ply == depth) {
-        int score = evaluate(board);
-        tt.store(board.zobrist_hash, score, Move(0, 0), 0, TT_EXACT);
+        int score = quiescence(board, ply, alpha, beta);
+        // tt.store(board.zobrist_hash, score, Move(0, 0), 0, TT_EXACT);
         return {score, Move(0, 0)};
     }
 
@@ -1023,6 +1243,8 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
 
     return {best_score, best_move_at_this_node};
 }
+
+
 
 
 }

@@ -899,6 +899,8 @@ private:
 
     void generate_pseudo_legal_moves(const Board& board, std::vector<Move>& move_list);
 
+    void generate_pseudo_legal_captures(const Board& board, std::vector<Move>& move_list);
+
     void generate_legal_moves(const Board& board, std::vector<Move>& move_list, std::vector<Move>& pseudo_moves);
 
     bool is_square_attacked(const Board& board, int square, int enemy_color);
@@ -917,7 +919,11 @@ private:
 
     std::pair<int, Move> search(const Board& board, int ply, int depth, int alpha, int beta);
 
+    int quiescence(const Board& board, int ply, int alpha, int beta);
+
     void generate_ordered_moves(const Board& board, std::vector<ScoredMove>& ordered_list, Move& move_guess, std::vector<Move>& pseudo_moves, std::vector<Move>& raw_moves);
+
+    void output_sorted_captures(const Board& board, std::vector<Move>& captures, std::vector<ScoredMove>& ordered_list);
 
     uint64_t nodes_searched = 0;
     bool search_aborted = false;
