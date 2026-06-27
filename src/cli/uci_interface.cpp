@@ -144,10 +144,10 @@ void apply_uci_move(const string& move_string, ChessCore::ChessEngine& engine) {
     if (move_string.length() == 5) { // Promotion
         char promo_char = move_string[4];
         switch(promo_char) {
-            case 'n' : promo_choice = 1;
-            case 'b' : promo_choice = 2;
-            case 'r' : promo_choice = 3;
-            case 'q' : promo_choice = 4;
+            case 'n' : promo_choice = 1; break;
+            case 'b' : promo_choice = 2; break;
+            case 'r' : promo_choice = 3; break;
+            case 'q' : promo_choice = 4; break;
             default : cerr << "Unexpected promotion type\n";
         }
 
@@ -209,19 +209,56 @@ void start_search(int depth, int max_time_ms, ChessCore::ChessEngine& engine) {
 void parse_go_command(stringstream& ss, ChessCore::ChessEngine& engine) {
     string token;
 
-    int depth = 7;
-    int max_time_ms = 100'000;
+    int depth = -1;
+    int movetime = -1;
+
+    int wtime = 0, btime = 0, winc = 0, binc = 0;
     
     while (ss >> token) {
         if (token == "depth") {
             ss >> depth;
         }
         else if (token == "movetime") {
-            ss >> max_time_ms;
+            ss >> movetime;
+        }
+        else if (token == "wtime") {
+            ss >> wtime;
+        }
+        else if (token == "btime") {
+            ss >> btime;
+        }
+        else if (token == "winc") {
+            ss >> winc;
+        }
+        else if (token == "binc") {
+            ss >> binc;
         }
     }
 
-    start_search(depth, max_time_ms, engine);
+    if (movetime == -1 && depth == -1) { // Movetime and depth commands have precedence over time left
+        int my_time = engine.get_side_to_move() == 0 ? (wtime) : (btime);
+
+        if (my_time) {
+            int my_inc = engine.get_side_to_move() == 0 ? (winc) : (binc);
+
+            movetime = min(my_time / 25 + my_inc / 2, my_time);
+            depth = 100; // Set depth to something unreachable
+        }
+        else {
+            movetime = 100; // Set default to 100 ms
+            depth = 100; // Set depth to something unreachable
+        }
+    }
+    
+    // If only either depth or movetime is set, set the other
+    else if (movetime == -1) {
+        movetime = 1'000'000;
+    }
+    else if (depth == -1) {
+        depth = 100;
+    }
+
+    start_search(depth, movetime, engine);
 }
 
 

@@ -1,0 +1,16 @@
+[configuration]
+entry_symbol = "chess_library_init"
+compatibility_minimum = "4.4"
+
+[libraries]
+windows.debug.x86_64 = "res://bin/libchess.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://bin/libchess.windows.template_release.x86_64.dll"
+
+linux.debug.x86_64 = "res://bin/libchess.linux.template_debug.x86_64.so"
+linux.release.x86_64 = "res://bin/libchess.linux.template_release.x86_64.so"
+
+macos.debug = "res://bin/libchess.macos.template_debug.framework"
+macos.release = "res://bin/libchess.macos.template_release.framework"
+
+web.template_debug.wasm32 = "res://bin/libchess.web.template_debug.wasm32.wasm"
+web.template_release.wasm32 = "res://bin/libchess.web.template_release.wasm32.wasm"

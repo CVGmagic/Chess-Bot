@@ -4,6 +4,7 @@
 #include <random>
 #include <iostream>
 #include <chrono>
+#include <string>
 
 namespace ChessCore {
 
@@ -1000,35 +1001,65 @@ Move ChessEngine::find_best_move(int max_depth, int max_time_ms) {
     nodes_searched = 0;
     search_aborted = false;
 
-    max_time = max_time_ms;
+    int time_buffer = 15;
+    max_time = std::min(std::max(max_time_ms - time_buffer, 20), max_time_ms);
     start_time = std::chrono::steady_clock::now();
 
     Move best_move_overall;
     int best_score_overall = -INF;
 
+    int deepest_searched = max_depth;
+
+    long long time_last_depth = 0;
+
     for (int current_depth = 1; current_depth <= max_depth; current_depth++) {
+        
+        auto start_depth_time = std::chrono::steady_clock::now();
+
         std::pair<int, Move> res = search(board, 0, current_depth, -INF, INF);
 
-        // Only update if search completed normally (not aborted) 
-        // or if this is our first result (need at least one valid move)
-        if (!res.second.is_none() || best_move_overall.is_none()) {
-            best_move_overall = res.second;
-            best_score_overall = res.first;
-        }
-
         if (search_aborted) {
-            break; 
+            deepest_searched = current_depth - 1;
+            
+            // If search breaks before depth 1 is finished
+            if (best_move_overall.is_none() && !res.second.is_none()) {
+                best_move_overall = res.second;
+                best_score_overall = res.first;
+            }
+            
+            break; // Stop loop
         }
 
-        // 5. Early Exit Heuristic: If we used up more than half our allowed time 
-        // on this depth, we will almost certainly run out of time trying the next one.
-        /*
-        auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
-        if (elapsed > max_time_ms / 2) {
+        // If not aborted, save result
+        best_move_overall = res.second;
+        best_score_overall = res.first;
+        
+        // If we found a mate, we can stop the search
+        if (best_score_overall > 27'900) {
+            deepest_searched = current_depth;
             break;
         }
-        */
+
+        auto end_depth_time = std::chrono::steady_clock::now();
+
+        long long time_this_depth = std::chrono::duration_cast<std::chrono::milliseconds>(end_depth_time - start_depth_time).count();
+
+        long long total_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_depth_time - start_time).count();
+        
+        // Early exit if we won't complete the next depth in time
+        if (current_depth > 1 && time_last_depth > 0) {
+            double branching_factor = (double)time_this_depth / time_last_depth;
+            branching_factor = std::max(branching_factor, 2.5); // Set to a minimum of 2.5
+            
+            long long estimated_next_depth_time = time_this_depth * branching_factor;
+
+            if (total_elapsed + estimated_next_depth_time > max_time_ms) {
+                deepest_searched = current_depth;
+                break;
+            }
+        }
+
+        time_last_depth = time_this_depth;
     }
     
     auto end_time = std::chrono::steady_clock::now();
@@ -1036,9 +1067,22 @@ Move ChessEngine::find_best_move(int max_depth, int max_time_ms) {
     std::chrono::duration<double> elapsed = end_time - start_time;
     double seconds = elapsed.count();
     
+    // Determine the evaluation, purely for humans
+    std::string eval;
+    if (best_score_overall > 28'000) {
+        eval = "Mate in " + std::to_string((29'000 - best_score_overall + 1) / 2);
+    } else if (best_score_overall < -28'000) {
+        eval = "-Mate in " + std::to_string((29'000 + best_score_overall + 1) / 2);
+    }
+    else {
+        eval = (board.side_to_move == WHITE) ? std::to_string(best_score_overall) : std::to_string(-best_score_overall);
+    }
+
+    std::cerr << "Depth searched: " << deepest_searched << "\n";
     std::cerr << "Positions searched: " << nodes_searched << "\n";
     std::cerr << "Time elapsed: " << seconds << "\n";
     std::cerr << "Nodes per second: " << (nodes_searched / seconds) << "\n";
+    std::cerr << "Evaluation: " << eval << "\n";
 
     return best_move_overall;
 }
@@ -1053,6 +1097,8 @@ Move ChessEngine::make_best_move(int max_depth, int max_time_ms) {
 
 
 int ChessEngine::quiescence(const Board& board, int ply, int alpha, int beta) {
+    // TODO Make bot not end in check
+
     // Static eval (stand pat)
     int static_eval = evaluate(board);
     
@@ -1115,8 +1161,8 @@ int ChessEngine::quiescence(const Board& board, int ply, int alpha, int beta) {
 }
 
 
-
 std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth, int alpha, int beta) {
+    // TODO Add check extension // TODO Add draw because of insufficient material
     nodes_searched++;
 
     int alpha_orig = alpha;
@@ -1135,7 +1181,7 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
         return {0, Move(0, 0)};
     }
 
-    if (ply == depth) {
+    if (ply >= depth) {
         int score = quiescence(board, ply, alpha, beta);
         // tt.store(board.zobrist_hash, score, Move(0, 0), 0, TT_EXACT);
         return {score, Move(0, 0)};
@@ -1171,12 +1217,38 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
     // Check if we have seen this layout before
     if (tt.lookup(board.zobrist_hash, tt_score, hash_move, remaining_depth, alpha, beta)) {
         // Make mate depth based again
-        if (tt_score > 28000)  tt_score -= ply;
-        else if (tt_score < -28000) tt_score += ply;
+        if (tt_score > 28'000)  tt_score -= ply;
+        else if (tt_score < -28'000) tt_score += ply;
 
-        return {tt_score, hash_move}; 
+        return {tt_score, hash_move};
     }
 
+    bool in_check = is_in_check(board, board.side_to_move);
+
+    // Null Move Pruning
+    if (remaining_depth >= 3 && !in_check && ply > 0) {
+        // Check if we have any pieces (except pawns) left
+        if ((board.occupancy[board.side_to_move] ^ board.bitboards[board.side_to_move][PAWN] ^ board.bitboards[board.side_to_move][KING]) > 0) {
+            int static_eval = evaluate(board);
+
+            if (static_eval >= beta) {
+                Board null_board = board;
+                null_board.make_null_move();
+
+                // R is the reduction factor. 2 or 3 is industry standard.
+                int R = 2; 
+
+                // Search with a "Null Window" [-beta, -beta + 1] at reduced depth
+                int score = -search(null_board, ply + 1, depth - R, -beta, -beta + 1).first;
+
+                // If the opponent STILL can't beat beta even after we passed our turn,
+                // this node is a guaranteed fail-high. Cut it off immediately!
+                if (score >= beta) {
+                    return {beta, Move(0, 0)}; 
+                }
+            }
+        }
+    }
 
     std::vector<ScoredMove>& ordered_moves = move_pool[ply];
     ordered_moves.clear(); // This doesn't actually free the memory, only makes it overwritable, so avoids dynamic reallocation
@@ -1190,8 +1262,8 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
     generate_ordered_moves(board, ordered_moves, hash_move, pseudo_moves, raw_moves);
 
     if (ordered_moves.empty()) {
-        if (is_in_check(board, board.side_to_move)) { // Checkmate
-            return {-29000 + ply, Move(0, 0)}; // Make further checkmates better
+        if (in_check) { // Checkmate
+            return {-29'000 + ply, Move(0, 0)}; // Make further checkmates better
         }
         return {0, Move(0, 0)}; // Stalemate
     }
@@ -1243,8 +1315,6 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
 
     return {best_score, best_move_at_this_node};
 }
-
-
 
 
 }

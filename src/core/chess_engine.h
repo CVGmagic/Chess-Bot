@@ -652,6 +652,16 @@ struct Board {
         halfmove_clock++;
     }
 
+    void make_null_move() {
+        side_to_move ^= 1;
+        zobrist_hash ^= Zobrist::side_to_move;
+    
+        if (en_passant_square != -1) {
+            zobrist_hash ^= Zobrist::en_passant[en_passant_square % 8];
+            en_passant_square = -1;
+        }
+    }
+
     uint64_t compute_zobrist_hash() const {
         uint64_t hash = 0;
 
@@ -964,6 +974,8 @@ public:
     Move make_best_move(int max_depth, int max_time_ms);
 
     Move find_best_move(int max_depth, int max_time_ms);
+
+    int get_side_to_move() {return board.side_to_move;}
 
     // Diagnostics
     bool test_zobrist_consistency(int max_moves);
