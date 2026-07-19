@@ -43,9 +43,9 @@ cli_env.Append(CPPPATH=["src"])
 
 # Inject high-performance compiler flags for maximizing search speed (NPS)
 if sys.platform == "win32":
-    cli_env.Append(CCFLAGS=["/O2", "/std:c++17", "/EHsc"])
+    cli_env.Append(CCFLAGS=["/O2", "/std:c++20", "/EHsc"])
 else:
-    cli_env.Append(CCFLAGS=["-O3", "-std=c++17"])
+    cli_env.Append(CCFLAGS=["-O3", "-std=c++20"])
 
 # Gather the files needed for the pure terminal version (Excluding Godot wrappers)
 cli_sources = [

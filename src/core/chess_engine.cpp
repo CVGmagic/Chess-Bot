@@ -6,6 +6,7 @@
 #include <chrono>
 #include <string>
 
+
 namespace ChessCore {
 
 // Debug flag referenced by the header TT logging macros
@@ -685,7 +686,7 @@ void ChessEngine::generate_legal_moves(const Board& board, std::vector<Move>& mo
 }
 
 
-void ChessEngine::generate_ordered_moves(const Board& board, std::vector<ScoredMove>& ordered_list, Move& move_guess, std::vector<Move>& pseudo_moves, std::vector<Move>& raw_moves) {
+void ChessEngine::generate_ordered_moves(const Board& board, std::vector<ScoredMove>& ordered_list, Move& move_guess, std::vector<Move>& pseudo_moves, std::vector<Move>& raw_moves, int ply) {
     // Generates and orders all legal moves for a given board
     // TODO Generate pseudo legal first, and only check legality of not pruned
     generate_legal_moves(board, raw_moves, pseudo_moves);
@@ -734,6 +735,12 @@ void ChessEngine::generate_ordered_moves(const Board& board, std::vector<ScoredM
         }
         else if (move.is_promotion()) {
             scored_move.score = 9000 + SORT_VALUES[move.get_promo_piece_type()];
+        }
+        else if (move == killer_moves[ply][0]) {
+            scored_move.score = 8000;
+        }
+        else if (move == killer_moves[ply][1]) {
+            scored_move.score = 7000;
         }
         else {
             int piece = -1;
@@ -954,10 +961,25 @@ int ChessEngine::evaluate(const Board& board) {
     if (phase > 24) {phase = 24;}
     if (phase < 0) {phase = 0;}
 
+    int white_bishops = count_bits(board.bitboards[WHITE][BISHOP]);
+    int black_bishops = count_bits(board.bitboards[BLACK][BISHOP]);
+
+    int bishop_score = 0;
+
+    static const int bishop_pair_mg = 10;
+    static const int bishop_pair_eg = 20;
+
+    if (white_bishops >= 2) {
+        bishop_score += (phase * bishop_pair_mg + (24 - phase) * bishop_pair_eg) / 24;
+    }
+    if (black_bishops >= 2) {
+        bishop_score -= (phase * bishop_pair_mg + (24 - phase) * bishop_pair_eg) / 24;
+    }
+
     if (board.side_to_move == WHITE) {
-        return (board.game_phase * board.mg_score + (24 - board.game_phase) * board.eg_score) / 24;
+        return (phase * board.mg_score + (24 - phase) * board.eg_score) / 24 + bishop_score;
     } else {
-        return -(board.game_phase * board.mg_score + (24 - board.game_phase) * board.eg_score) / 24;
+        return -(phase * board.mg_score + (24 - phase) * board.eg_score) / 24 - bishop_score;
     }
 }
 
@@ -1000,6 +1022,12 @@ std::pair<int, Move> ChessEngine::minmax(const Board& board, int depth) {
 Move ChessEngine::find_best_move(int max_depth, int max_time_ms) {
     nodes_searched = 0;
     search_aborted = false;
+
+    // Reset killer moves
+    for (int i = 0; i < MAX_PLY; i++) {
+        killer_moves[0][i] = Move(0, 0);
+        killer_moves[1][i] = Move(0, 0);
+    }
 
     int time_buffer = 15;
     max_time = std::min(std::max(max_time_ms - time_buffer, 20), max_time_ms);
@@ -1168,7 +1196,8 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
     int alpha_orig = alpha;
     int remaining_depth = depth - ply;
 
-    if (nodes_searched % 16384 == 0) {
+    // Check if time has run out
+    if (nodes_searched % 16384 == 0) { // TODO Tune this value
         auto now = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
         
@@ -1181,16 +1210,10 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
         return {0, Move(0, 0)};
     }
 
-    if (ply >= depth) {
-        int score = quiescence(board, ply, alpha, beta);
-        // tt.store(board.zobrist_hash, score, Move(0, 0), 0, TT_EXACT);
-        return {score, Move(0, 0)};
-    }
-
     // Draw by repetition or 50 move rule
     if (ply > 0) {
         if (board.halfmove_clock >= 100) {
-        return {0, Move(0, 0)};
+            return {0, Move(0, 0)};
         }
 
         int oldest_allowed_index = (history_pointer - 1) - board.halfmove_clock;
@@ -1203,13 +1226,12 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
             }
         }
         // This detects if the position has occurred before
-        // Not technically draw, but computer shouldn't just shuffle pieces back and forth
+        // Not technically draw, but computer shouldn't just shuffle pieces back and forth (unless he wants a draw)
         if (same_pos_count >= 1) {
             return {0, Move(0, 0)};
         }
     }
 
-    
     // Use transposition table
     Move hash_move = Move(0, 0);
     int tt_score = 0;
@@ -1224,6 +1246,18 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
     }
 
     bool in_check = is_in_check(board, board.side_to_move);
+
+    // Check extension
+    if (in_check) {
+        depth++;
+    }
+
+    // Depth limit reached
+    if (ply >= depth) {
+        int score = quiescence(board, ply, alpha, beta);
+        // tt.store(board.zobrist_hash, score, Move(0, 0), 0, TT_EXACT);
+        return {score, Move(0, 0)};
+    }
 
     // Null Move Pruning
     if (remaining_depth >= 3 && !in_check && ply > 0) {
@@ -1259,7 +1293,7 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
     std::vector<Move>& raw_moves = raw_move_pool[ply];
     raw_moves.clear();
 
-    generate_ordered_moves(board, ordered_moves, hash_move, pseudo_moves, raw_moves);
+    generate_ordered_moves(board, ordered_moves, hash_move, pseudo_moves, raw_moves, ply);
 
     if (ordered_moves.empty()) {
         if (in_check) { // Checkmate
@@ -1271,6 +1305,8 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
     Move best_move_at_this_node; // = ordered_moves[0].move; // Initialize with first move as fallback
     int best_score = -INF;
 
+    int moves_searched = 0;
+
     for (const ScoredMove& move : ordered_moves) {
         Board simulated_board = board;
         simulated_board.make_move(move.move);
@@ -1278,12 +1314,48 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
         // Push to history_stack
         history_stack[history_pointer++] = simulated_board.zobrist_hash;
 
-        int score = -search(simulated_board, ply + 1, depth, -beta, -alpha).first;
+        moves_searched++;
+        bool do_lmr = false; // Late move reduction
+
+        int score = 0;
+
+        bool pvNode = beta != alpha + 1; // Full window search
+
+        // Determine wether to do late move reduction
+        if (!pvNode && remaining_depth >= 4 && moves_searched > 4 && !in_check) {
+            // Don't reduce captures
+            if (!move.move.is_capture() && !move.move.is_promotion()) {
+                // Don't reduce killer moves
+                if ((move.move != killer_moves[ply][0]) && (move.move != killer_moves[ply][1])) {
+                    do_lmr = true;
+                }
+            }
+        }
+
+        // Late move reduction
+        if (do_lmr) {
+            int reduction = 1; // TODO Fine tune parameter
+            // We search at reduced depth, and with a smaller window, because we only need to know if it's better than alpha
+            score = -search(simulated_board, ply + 1, depth - reduction, -alpha - 1, -alpha).first;
+            
+            // If the move is better than expected, repeat search at full depth
+            if (score > alpha) {
+                score = -search(simulated_board, ply + 1, depth, -beta, -alpha).first;
+            }
+        } else {
+            score = -search(simulated_board, ply + 1, depth, -beta, -alpha).first;
+        }
         
         // Effectively delete from history stack
         history_pointer--;
 
         if (score >= beta) { // Opponent will never allow this
+            // Potentially store move as killer move
+            if (!move.move.is_capture() && (move.move != killer_moves[ply][0])) {
+                killer_moves[ply][1] = killer_moves[ply][0];
+                killer_moves[ply][0] = move.move;
+            }
+
             best_score = score;
             best_move_at_this_node = move.move;
             break;

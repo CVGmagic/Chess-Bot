@@ -18,6 +18,25 @@
 
 namespace ChessCore {
 
+static inline int count_bits(uint64_t bitboard) {
+#if defined(_MSC_VER) && !defined(__clang__)
+    // For MSVC (Windows Native Build)
+    #include <intrin.h>
+    return static_cast<int>(__popcnt64(bitboard));
+#elif defined(__GNUC__) || defined(__clang__)
+    // For GCC / Clang / Emscripten (WebAssembly Build)
+    return __builtin_popcountll(bitboard);
+#else
+    // Fallback
+    int count = 0;
+    while (bitboard) {
+        bitboard &= bitboard - 1;
+        count++;
+    }
+    return count;
+#endif
+}
+
 static const uint8_t castling_rights_update[64] = { // Allows fast castling rights updates
     13, 15, 15, 15, 12, 15, 15, 14,  // Row 1
     15, 15, 15, 15, 15, 15, 15, 15,
@@ -442,6 +461,15 @@ struct Move {
     inline bool is_double_pawn_push() const {return (data & 0xF000) == FLAG_DOUBLE_PAWN_PUSH << 12;}
 
     inline bool is_en_passant() const {return (data & 0xF000) == FLAG_EN_PASSANT << 12;}
+
+    inline bool operator==(const Move& other) const {
+        // return this->from == other.from && this->to == other.to;
+        return this->data == other.data; 
+    }
+
+    inline bool operator!=(const Move& other) const {
+        return !(*this == other); // Nutzt einfach den == Operator von oben
+    }
 };
 
 
@@ -834,7 +862,35 @@ class TranspositionTable {
 
 class ChessEngine {
 private:
+    static const int MAX_PLY = 100;
+
     static const uint64_t KNIGHT_ATTACKS[64];
+
+    uint64_t king_shield_masks[2][64];
+
+    void init_king_shields() {
+        for (int sq = 0; sq < 64; sq++) {
+            // Shield is before king
+            uint64_t white_shield = 0;
+            if (sq < 56) { // Nicht auf der 8. Reihe
+                int f = sq % 8;
+                if (f > 0) white_shield |= (1ULL << (sq + 7)); // Feld links vorne
+                white_shield |= (1ULL << (sq + 8));            // Feld direkt vorne
+                if (f < 7) white_shield |= (1ULL << (sq + 9)); // Feld rechts vorne
+            }
+            king_shield_masks[WHITE][sq] = white_shield;
+
+            // Schwarzer König: Schild ist eine Reihe drunter (-8)
+            uint64_t black_shield = 0;
+            if (sq > 7) { // Nicht auf der 1. Reihe
+                int f = sq % 8;
+                if (f > 0) black_shield |= (1ULL << (sq - 9));
+                black_shield |= (1ULL << (sq - 8));
+                if (f < 7) black_shield |= (1ULL << (sq - 7));
+            }
+            king_shield_masks[BLACK][sq] = black_shield;
+        }
+    }
 
     uint64_t between_matrix[64][64];
 
@@ -931,7 +987,7 @@ private:
 
     int quiescence(const Board& board, int ply, int alpha, int beta);
 
-    void generate_ordered_moves(const Board& board, std::vector<ScoredMove>& ordered_list, Move& move_guess, std::vector<Move>& pseudo_moves, std::vector<Move>& raw_moves);
+    void generate_ordered_moves(const Board& board, std::vector<ScoredMove>& ordered_list, Move& move_guess, std::vector<Move>& pseudo_moves, std::vector<Move>& raw_moves, int ply);
 
     void output_sorted_captures(const Board& board, std::vector<Move>& captures, std::vector<ScoredMove>& ordered_list);
 
@@ -943,8 +999,11 @@ private:
     TranspositionTable tt;
 
     // Allocate memory beforehand, up to depth 100, for huge performance gain
-    std::vector<ScoredMove> move_pool[100]; std::vector<Move> pseudo_move_pool[100];
-    std::vector<Move> raw_move_pool[100];
+    std::vector<ScoredMove> move_pool[MAX_PLY];
+    std::vector<Move> pseudo_move_pool[MAX_PLY];
+    std::vector<Move> raw_move_pool[MAX_PLY];
+
+    Move killer_moves[MAX_PLY][2];
 
     // 
     uint64_t history_stack[2048];
