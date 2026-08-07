@@ -1190,8 +1190,18 @@ int ChessEngine::quiescence(const Board& board, int ply, int alpha, int beta) {
 }
 
 
+std::vector<Move> ChessEngine::get_legal_moves() {
+    std::vector<Move> legal_moves;
+    std::vector<Move> pseudo_moves;
+
+    generate_legal_moves(board, legal_moves, pseudo_moves);
+
+    return legal_moves;
+}
+
+
 std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth, int alpha, int beta) {
-    // TODO Add check extension // TODO Add draw because of insufficient material
+    // TODO Add draw because of insufficient material
     nodes_searched++;
 
     int alpha_orig = alpha;

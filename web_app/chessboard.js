@@ -31,14 +31,14 @@ function renderBoard() {
             const is_light = (r + c) % 2 === 0;
             square.className = `square ${is_light ? 'light' : 'dark'}`;
             
-            if (selectedSquare && selectedSquare[0] === r && selectedSquare[1] === c) {
+            if (selectedSquare && selectedSquare[0] === 7 - r && selectedSquare[1] === c) {
                 square.classList.add('selected');
             }
 
-            const pieceSymbol = boardState[r][c];
+            const pieceSymbol = boardState[7 - r][c];
             square.innerText = PIECES[pieceSymbol];
 
-            square.addEventListener('click', () => handleSquareClick(r, c));
+            square.addEventListener('click', () => handleSquareClick(7 - r, c));
             
             board.appendChild(square);
             
@@ -55,8 +55,15 @@ function handleSquareClick(r, c) {
         if (fromRow === r && fromCol === c) {
             selectedSquare = null;
         } else {
-            boardState[r][c] = boardState[fromRow][fromCol];
-            boardState[fromRow][fromCol] = '';
+            let is_legal = checkLegal(fromRow, fromCol, r, c);
+
+            if (is_legal) {
+                boardState[r][c] = boardState[fromRow][fromCol];
+                boardState[fromRow][fromCol] = '';
+
+                makeHumanMove(fromRow, fromCol, r, c);
+            }
+
             selectedSquare = null;
         }
     } else if (clickedPiece !== '') {
@@ -65,6 +72,14 @@ function handleSquareClick(r, c) {
 
     renderBoard();
 }
+
+function makeEngineMoveOnUI(from_row, from_col, to_row, to_col) {
+    boardState[to_row][to_col] = boardState[from_row][from_col];
+    boardState[from_row][from_col] = '';
+
+    renderBoard();
+}
+
 
 renderBoard();
 

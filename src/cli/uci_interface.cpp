@@ -267,6 +267,17 @@ void parse_go_command(stringstream& ss) {
 }
 
 
+void get_legal_moves() {
+    vector<ChessCore::Move> legal_moves = engine.get_legal_moves();
+
+    cout << "legalmoves\n";
+    for (ChessCore::Move& move : legal_moves) {
+        cout << move.get_from() << " " << move.get_to() << " " << move.get_flag() << "\n";
+    }
+    cout << "endlegalmoves\n";
+}
+
+
 void process_command(stringstream& ss) {
     string cmd;
     ss >> cmd;
@@ -287,6 +298,9 @@ void process_command(stringstream& ss) {
     }
     else if (cmd == "go") {
         parse_go_command(ss);
+    }
+    else if (cmd == "getlegal") {
+        get_legal_moves();
     }
     else if (cmd == "quit") {
         exit(0);

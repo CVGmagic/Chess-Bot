@@ -1040,6 +1040,8 @@ public:
     bool test_zobrist_consistency(int max_moves);
 
     Move debug_search_with_tt(int max_depth, int max_time_ms);
+
+    std::vector<Move> get_legal_moves();
 };
 
 }
