@@ -966,6 +966,7 @@ int ChessEngine::evaluate(const Board& board) {
 
     int bishop_score = 0;
 
+    // TODO Fine tune these values
     static const int bishop_pair_mg = 10;
     static const int bishop_pair_eg = 20;
 

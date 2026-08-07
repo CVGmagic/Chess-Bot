@@ -1,0 +1,38 @@
+/* Target every element with id 'chessboard' */
+body {
+  font-family: sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: #1e1e1e;
+  color: #fff;
+}
+
+#chessboard{
+    display: grid;
+    grid-template-columns: repeat(8, 60px);
+    grid-template-rows: repeat(8, 60px);
+    border: 4px solid #414141;
+    user-select: none;
+}
+
+.square {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+  cursor: pointer;
+}
+
+.light {
+  background-color: #eeeed2;
+}
+.dark {
+  background-color: #769656;
+}
+
+.square.selected {
+  background-color: #baca44 !important;
+}
