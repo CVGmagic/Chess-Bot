@@ -67,3 +67,4 @@ function handleSquareClick(r, c) {
 }
 
 renderBoard();
+

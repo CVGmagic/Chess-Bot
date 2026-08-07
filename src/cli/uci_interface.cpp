@@ -4,8 +4,13 @@
 #include <sstream>
 #include <vector>
 #include "../core/chess_engine.h"
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 using namespace std;
 
+
+ChessCore::ChessEngine engine;
 
 enum GodotPieces{
     EMPTY_PIECE,
@@ -136,7 +141,7 @@ vector<string> split_string(const string& str) {
 }
 
 
-void apply_uci_move(const string& move_string, ChessCore::ChessEngine& engine) {
+void apply_uci_move(const string& move_string) {
     int from_sq = uci_square_to_square(move_string.substr(0, 2));
     int to_sq = uci_square_to_square(move_string.substr(2, 2));
 
@@ -157,7 +162,7 @@ void apply_uci_move(const string& move_string, ChessCore::ChessEngine& engine) {
 }
 
 
-void parse_position_command(stringstream& ss, ChessCore::ChessEngine& engine) {
+void parse_position_command(stringstream& ss) {
     std::string token;
     ss >> token; // Grab the next word after "position"
 
@@ -184,29 +189,29 @@ void parse_position_command(stringstream& ss, ChessCore::ChessEngine& engine) {
             full_fen += token;
         }
 
-// Jetzt enthält 'full_fen' die komplette korrekte FEN!
-parse_fen_to_engine(full_fen, engine);
+        // Jetzt enthält 'full_fen' die komplette korrekte FEN!
+        parse_fen_to_engine(full_fen, engine);
     }
 
     // 2. Play through historical moves sequentially if present
     if (token == "moves") {
         std::string move_str;
         while (ss >> move_str) {
-            // Parse "e2e4" coordinates and apply it to the board memory
-            apply_uci_move(move_str, engine); 
+            // Parse coordinates and apply it to the board memory
+            apply_uci_move(move_str); 
         }
     }
 }
 
 
-void start_search(int depth, int max_time_ms, ChessCore::ChessEngine& engine) {
+void start_search(int depth, int max_time_ms) {
     ChessCore::Move best_move = engine.debug_search_with_tt(depth, max_time_ms);
 
     cout << "bestmove " << move_to_uci(best_move) << "\n" << flush;
 }
 
 
-void parse_go_command(stringstream& ss, ChessCore::ChessEngine& engine) {
+void parse_go_command(stringstream& ss) {
     string token;
 
     int depth = -1;
@@ -258,12 +263,51 @@ void parse_go_command(stringstream& ss, ChessCore::ChessEngine& engine) {
         depth = 100;
     }
 
-    start_search(depth, movetime, engine);
+    start_search(depth, movetime);
 }
 
 
+void process_command(stringstream& ss) {
+    string cmd;
+    ss >> cmd;
+
+    if (cmd == "uci") {
+        cout << "id name MyChessEngine v1.0\n";
+        cout << "id author Caius Grobbel\n";
+        cout << "uciok\n" << flush;
+    }
+    else if (cmd == "ucinewgame") {
+        engine.reset_state();
+    }
+    else if (cmd == "isready") {
+        cout << "readyok\n" << flush;
+    }
+    else if (cmd == "position") {
+        parse_position_command(ss);
+    }
+    else if (cmd == "go") {
+        parse_go_command(ss);
+    }
+    else if (cmd == "quit") {
+        exit(0);
+    }
+    else {
+        cerr << "Unknown command " << cmd << " encountered\n";
+    }
+}
+
+
+extern "C" {
+    #ifdef __EMSCRIPTEN__
+    EMSCRIPTEN_KEEPALIVE
+    #endif
+    void send_uci_command(const char* command) {
+        stringstream ss(command);
+        process_command(ss);
+    }
+}
+
 int main() {
-    ChessCore::ChessEngine engine;
     string line;
 
     while (getline(cin, line)) {
@@ -275,31 +319,6 @@ int main() {
 
         stringstream ss(line);
 
-        string cmd;
-        ss >> cmd;
-
-        if (cmd == "uci") {
-            cout << "id name MyChessEngine v1.0\n";
-            cout << "id author Caius Grobbel\n";
-            cout << "uciok\n" << flush;
-        }
-        else if (cmd == "ucinewgame") {
-            engine.reset_state();
-        }
-        else if (cmd == "isready") {
-            cout << "readyok\n" << flush;
-        }
-        else if (cmd == "position") {
-            parse_position_command(ss, engine);
-        }
-        else if (cmd == "go") {
-            parse_go_command(ss, engine);
-        }
-        else if (cmd == "quit") {
-            break; 
-        }
-        else {
-            cerr << "Unknown command " << cmd << " encountered\n";
-        }
+        process_command(ss);
     }
 }
