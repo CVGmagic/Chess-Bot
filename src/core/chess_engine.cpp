@@ -1045,7 +1045,7 @@ Move ChessEngine::find_best_move(int max_depth, int max_time_ms) {
         
         auto start_depth_time = std::chrono::steady_clock::now();
 
-        std::pair<int, Move> res = search(board, 0, current_depth, -INF, INF);
+        std::pair<int, Move> res = search(board, 0, current_depth, -INF, INF, 0);
 
         if (search_aborted) {
             deepest_searched = current_depth - 1;
@@ -1199,8 +1199,54 @@ std::vector<Move> ChessEngine::get_legal_moves() {
     return legal_moves;
 }
 
+/*
+bool ChessEngine::gives_check(const Board& board, Move move) {
+    int from = move.get_from();
+    int to = move.get_to();
+    int us = board.side_to_move;
+    
+    // O(1) oder max 6 Iterationen NUR für die eigene Farbe:
+    int piece_type = -1;
+    for (int p = 0; p < 6; p++) {
+        if ((1ULL << from) & board.bitboards[us][p]) {
+            piece_type = p;
+            break;
+        }
+    }
 
-std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth, int alpha, int beta) {
+    int enemy_color = us ^ 1;
+    uint64_t enemy_king_bb = board.bitboards[enemy_color][KING];
+    int enemy_king_sq = pop_lsb(enemy_king_bb);
+
+    // 1. Direktes Schach prüfen
+    uint64_t attacks = 0;
+    switch (piece_type) {
+        case KNIGHT: attacks = get_knight_attacks(to, board.occupancy[USABLE]); break;
+        case PAWN:   attacks = get_pawn_attacks(us, to); break;
+        case BISHOP: attacks = get_bishop_attacks(to, board.occupancy[BOTH], board.occupancy[USABLE]); break;
+        case ROOK:   attacks = get_rook_attacks(to, board.occupancy[BOTH], board.occupancy[USABLE]); break;
+        case QUEEN:  attacks = get_queen_attacks(to, board.occupancy[BOTH], board.occupancy[USABLE]); break;
+        case KING:   attacks = 0; break; // König gibt kein direktes Schach
+    }
+
+    if (attacks & (1ULL << enemy_king_sq)) {
+        return true; // Direktes Schach!
+    }
+
+    // 2. Abzugsschach (Discovered Check) prüfen
+    uint64_t new_occupancy = (board.occupancy[BOTH] ^ (1ULL << from)) | (1ULL << to);
+    
+    uint64_t rooks_queens = board.bitboards[us][ROOK] | board.bitboards[us][QUEEN];
+    if (get_rook_attacks(enemy_king_sq, new_occupancy, board.occupancy[USABLE]) & rooks_queens) return true;
+
+    uint64_t bishops_queens = board.bitboards[us][BISHOP] | board.bitboards[us][QUEEN];
+    if (get_bishop_attacks(enemy_king_sq, new_occupancy, board.occupancy[USABLE]) & bishops_queens) return true;
+
+    return false;
+}
+*/
+
+std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth, int alpha, int beta, int extensions) {
     // TODO Add draw because of insufficient material
     nodes_searched++;
 
@@ -1259,8 +1305,9 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
     bool in_check = is_in_check(board, board.side_to_move);
 
     // Check extension
-    if (in_check) {
+    if (in_check && extensions < 4) { // TODO fine tune this constant
         depth++;
+        extensions++;
     }
 
     // Depth limit reached
@@ -1284,7 +1331,11 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
                 int R = 2; 
 
                 // Search with a "Null Window" [-beta, -beta + 1] at reduced depth
-                int score = -search(null_board, ply + 1, depth - R, -beta, -beta + 1).first;
+                int score = -search(null_board, ply + 1, depth - R, -beta, -beta + 1, extensions).first;
+  
+                if (search_aborted) {
+                    return {0, Move(0, 0)};
+                }
 
                 // If the opponent STILL can't beat beta even after we passed our turn,
                 // this node is a guaranteed fail-high. Cut it off immediately!
@@ -1332,8 +1383,11 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
 
         bool pvNode = beta != alpha + 1; // Full window search
 
+        // bool gives_check = is_in_check(simulated_board, simulated_board.side_to_move);
+        bool gives_check = false;
+
         // Determine wether to do late move reduction
-        if (!pvNode && remaining_depth >= 4 && moves_searched > 4 && !in_check) {
+        if (!pvNode && remaining_depth >= 4 && moves_searched > 4 && !in_check && !gives_check) {
             // Don't reduce captures
             if (!move.move.is_capture() && !move.move.is_promotion()) {
                 // Don't reduce killer moves
@@ -1347,14 +1401,29 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
         if (do_lmr) {
             int reduction = 1; // TODO Fine tune parameter
             // We search at reduced depth, and with a smaller window, because we only need to know if it's better than alpha
-            score = -search(simulated_board, ply + 1, depth - reduction, -alpha - 1, -alpha).first;
+            score = -search(simulated_board, ply + 1, depth - reduction, -alpha - 1, -alpha, extensions).first;
             
+            if (search_aborted) {
+                history_pointer--;
+                return {0, Move(0, 0)};
+            }
+
             // If the move is better than expected, repeat search at full depth
             if (score > alpha) {
-                score = -search(simulated_board, ply + 1, depth, -beta, -alpha).first;
+                score = -search(simulated_board, ply + 1, depth, -beta, -alpha, extensions).first;
+            }
+
+            if (search_aborted) {
+                history_pointer--;
+                return {0, Move(0, 0)};
             }
         } else {
-            score = -search(simulated_board, ply + 1, depth, -beta, -alpha).first;
+            score = -search(simulated_board, ply + 1, depth, -beta, -alpha, extensions).first;
+
+            if (search_aborted) {
+                history_pointer--;
+                return {0, Move(0, 0)};
+            }
         }
         
         // Effectively delete from history stack

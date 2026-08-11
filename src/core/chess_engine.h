@@ -480,7 +480,7 @@ struct Board {
     int en_passant_square = -1; // -1 = None
     uint8_t castling_rights = 0b0000; // No castling allowed initially
 
-    uint64_t occupancy[5] = {0}; // 0 = White, 1 = Black, 2 = Both, 3 = Empty, 4 = Friendly
+    uint64_t occupancy[5] = {0}; // 0 = White, 1 = Black, 2 = Both, 3 = Empty, 4 = Usable
 
     int mg_score = 0;
     int eg_score = 0;
@@ -983,13 +983,15 @@ private:
 
     std::pair<int, Move> minmax(const Board& board, int depth);
 
-    std::pair<int, Move> search(const Board& board, int ply, int depth, int alpha, int beta);
+    std::pair<int, Move> search(const Board& board, int ply, int depth, int alpha, int beta, int extensions);
 
     int quiescence(const Board& board, int ply, int alpha, int beta);
 
     void generate_ordered_moves(const Board& board, std::vector<ScoredMove>& ordered_list, Move& move_guess, std::vector<Move>& pseudo_moves, std::vector<Move>& raw_moves, int ply);
 
     void output_sorted_captures(const Board& board, std::vector<Move>& captures, std::vector<ScoredMove>& ordered_list);
+
+    // bool gives_check(const Board& board, Move move);
 
     uint64_t nodes_searched = 0;
     bool search_aborted = false;

@@ -34,5 +34,9 @@ body {
 }
 
 .square.selected {
-  background-color: #baca44 !important;
+  background-color: rgb(186, 202, 68) !important;
+}
+
+.square.engine-moved {
+  background-color: rgb(186, 202, 68) !important;
 }

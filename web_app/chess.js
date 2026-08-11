@@ -8,6 +8,30 @@ let receiving_legal_moves = false;
 
 let current_legal_moves = [];
 
+const MoveFlag = Object.freeze({
+  // Quiet Moves
+  FLAG_QUIET: 0x0,             // 0000 (0)
+  FLAG_DOUBLE_PAWN_PUSH: 0x1,  // 0001 (1)
+  FLAG_KING_CASTLE: 0x2,       // 0010 (2)
+  FLAG_QUEEN_CASTLE: 0x3,      // 0011 (3)
+
+  // Captures
+  FLAG_CAPTURE: 0x4,           // 0100 (4)
+  FLAG_EN_PASSANT: 0x5,        // 0101 (5)
+
+  // Quiet Promotions
+  FLAG_PROMO_KNIGHT: 0x8,      // 1000 (8)
+  FLAG_PROMO_BISHOP: 0x9,      // 1001 (9)
+  FLAG_PROMO_ROOK: 0xA,        // 1010 (10)
+  FLAG_PROMO_QUEEN: 0xB,       // 1011 (11)
+
+  // Capturing Promotions
+  FLAG_PROMO_CAPTURE_N: 0xC,   // 1100 (12)
+  FLAG_PROMO_CAPTURE_B: 0xD,   // 1101 (13)
+  FLAG_PROMO_CAPTURE_R: 0xE,   // 1110 (14)
+  FLAG_PROMO_CAPTURE_Q: 0xF    // 1111 (15)
+});
+
 
 function coordsToAlgebraic(row, col, topToBottom = false) {
   // 1. Convert column (0..7) to file ('a'..'h')
@@ -132,5 +156,10 @@ function updateEnginePosition() {
 function getEngineMove() {
     updateEnginePosition();
 
-    sendUCICommand("go movetime 100");
+    const movetimeInput = document.getElementById('movetime-input');
+
+    let time_ms = parseInt(movetimeInput.value, 10);
+
+    sendUCICommand("go movetime " + time_ms);
+    console.log(time_ms)
 }

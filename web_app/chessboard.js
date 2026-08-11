@@ -21,6 +21,8 @@ let boardState = [
 
 let selectedSquare = null;
 
+let engineMovedSquares = [];
+
 function renderBoard() {
     board.innerHTML = '';
 
@@ -33,6 +35,12 @@ function renderBoard() {
             
             if (selectedSquare && selectedSquare[0] === 7 - r && selectedSquare[1] === c) {
                 square.classList.add('selected');
+            }
+            const isEngineSquare = engineMovedSquares.some(
+                ([mRow, mCol]) => mRow === (7 - r) && mCol === c
+            );
+            if (isEngineSquare) {
+                square.classList.add('engine-moved');
             }
 
             const pieceSymbol = boardState[7 - r][c];
@@ -76,6 +84,11 @@ function handleSquareClick(r, c) {
 function makeEngineMoveOnUI(from_row, from_col, to_row, to_col) {
     boardState[to_row][to_col] = boardState[from_row][from_col];
     boardState[from_row][from_col] = '';
+
+    engineMovedSquares = [];
+
+    engineMovedSquares.push([to_row, to_col]);
+    engineMovedSquares.push([from_row, from_col]);
 
     renderBoard();
 }

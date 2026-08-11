@@ -12,5 +12,36 @@
 
     <script src="chess.js"></script>
     <script src="chessboard.js"></script>
+
+    <div class="engine-controls">
+        <label for="movetime-input">Engine Thinking Time (ms):</label>
+        <input 
+            type="number" 
+            id="movetime-input" 
+            value="1000" 
+            min="50" 
+            max="10000" 
+            step="10"
+        >
+        <!-- Automatically reset the value to within the bounds -->
+        <script>
+            const movetimeInput = document.getElementById('movetime-input');
+
+            movetimeInput.addEventListener('blur', () => {
+                const minVal = parseInt(movetimeInput.min, 10);
+                const maxVal = parseInt(movetimeInput.max, 10);
+
+                const currentVal = parseInt(movetimeInput.value, 10);
+
+                // If the typed value is lower than the minimum, auto-correct it
+                if (isNaN(currentVal) || currentVal < minVal) {
+                    movetimeInput.value = minVal;
+                }
+                else if (currentVal > maxVal) {
+                    movetimeInput.value = maxVal;
+                }
+            });
+        </script>
+    </div>
 </body>
 
