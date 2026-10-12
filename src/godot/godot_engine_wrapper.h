@@ -4,7 +4,7 @@
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/packed_int32_array.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
-#include "../src/core/chess_engine.h"
+#include "../core/chess_engine.h"
 
 namespace godot {
 
@@ -22,7 +22,9 @@ protected:
     }
 
 public:
-    GodotChessEngine() {}
+    GodotChessEngine() {
+        native_engine.load_config_from_file("config.txt");
+    }
     ~GodotChessEngine() {}
 
     int make_best_move(int depth) {

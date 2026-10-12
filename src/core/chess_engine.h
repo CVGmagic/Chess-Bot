@@ -10,6 +10,19 @@
 #include <cmath>
 #include <random>
 #include <chrono>
+#include <fstream>
+#include <sstream>
+#include <string>
+
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#elif defined(__linux__)
+#include <unistd.h>
+#include <limits.h>
+#endif
 
 
 // Compile with:
@@ -329,6 +342,28 @@ static const int eg_table[6][64] = {
 static const int PHASE_VALUES[6] = {0, 1, 1, 2, 4, 0};
 
 static const int SORT_VALUES[6] = { 100, 200, 300, 400, 500, 600 };
+
+inline std::string get_executable_dir() {
+    char buffer[1024] = {0};
+#if defined(_WIN32)
+    GetModuleFileNameA(NULL, buffer, sizeof(buffer));
+    std::string path(buffer);
+    size_t pos = path.find_last_of("\\/");
+    return (pos != std::string::npos) ? path.substr(0, pos) : "";
+#elif defined(__linux__)
+    ssize_t len = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);
+    if (len != -1) {
+        buffer[len] = '\0';
+        std::string path(buffer);
+        size_t pos = path.find_last_of("/");
+        return (pos != std::string::npos) ? path.substr(0, pos) : "";
+    }
+    return "";
+#else
+    return ""; // Fallback for WASM / WebAssembly
+#endif
+}
+
 
 enum Square {
     A1, B1, C1, D1, E1, F1, G1, H1,
@@ -741,6 +776,76 @@ struct ScoredMove {
 };
 
 
+struct EngineConfig {
+    // Search tuning values
+    int lmr_depth_threshold = 4; // Minimum depth for late move reduction.
+    int lmr_move_threshold = 4; // Minimum move count before reducing quiet moves.
+    int max_extensions = 4; // Maximum number of depth extensions in check.
+    int lmr_reduction = 1; // Depth reduction applied to LMR searches.
+    int null_move_depth_threshold = 3; // Minimum remaining depth for null-move pruning.
+    int null_move_reduction = 2; // Depth reduction used in null-move search.
+
+    // Evaluation tuning values
+    int bishop_pair_mg = 10; // Middlegame bishop-pair bonus.
+    int bishop_pair_eg = 20; // Endgame bishop-pair bonus.
+
+    // Runtime / performance tuning values
+    int tt_size_mb = 16; // Transposition table size in megabytes.
+    int search_check_interval = 16384; // Nodes between time-checks during search.
+    int search_time_buffer_ms = 15; // Safety margin subtracted from move time.
+    int min_search_time_ms = 20; // Lower bound for per-move search time.
+
+    void load_from_file(const std::string& filename) {
+        std::ifstream file(filename);
+        if (!file.is_open()) {
+            std::string exe_dir = get_executable_dir();
+            if (!exe_dir.empty()) {
+                std::string full_path = exe_dir + "/" + filename;
+                file.open(full_path);
+            }
+        }
+
+        if (!file.is_open()) {
+            std::cerr << "Config file could not be loaded\n";
+            return;
+        }
+
+        std::string line;
+        while (std::getline(file, line)) {
+            // Ignore blank lines.
+            if (line.empty()) continue;
+
+            // Ignore comment lines such as # comment and // comment.
+            std::string trimmed = line;
+            while (!trimmed.empty() && (trimmed.front() == ' ' || trimmed.front() == '\t')) {
+                trimmed.erase(trimmed.begin());
+            }
+            if (trimmed.empty()) continue;
+            if (trimmed.rfind("#", 0) == 0 || trimmed.rfind("//", 0) == 0) continue;
+
+            std::istringstream iss(line);
+            std::string key;
+            int value;
+            if (iss >> key >> value) {
+                if (key == "lmr_depth_threshold") lmr_depth_threshold = value;
+                else if (key == "lmr_move_threshold") lmr_move_threshold = value;
+                else if (key == "max_extensions") max_extensions = value;
+                else if (key == "lmr_reduction") lmr_reduction = value;
+                else if (key == "null_move_depth_threshold") null_move_depth_threshold = value;
+                else if (key == "null_move_reduction") null_move_reduction = value;
+                else if (key == "bishop_pair_mg") bishop_pair_mg = value;
+                else if (key == "bishop_pair_eg") bishop_pair_eg = value;
+                else if (key == "tt_size_mb") tt_size_mb = value;
+                else if (key == "search_check_interval") search_check_interval = value;
+                else if (key == "search_time_buffer_ms") search_time_buffer_ms = value;
+                else if (key == "min_search_time_ms") min_search_time_ms = value;
+            }
+        }
+        std::cerr << "Config file successfully loaded\n";
+    }
+};
+
+
 enum TTFlag : uint8_t {
     TT_EXACT,
     TT_ALPHA, // Upper bound
@@ -1012,6 +1117,9 @@ private:
     int history_pointer = 0; // Index of the first free element in history_stack
 
     Board board;
+
+    EngineConfig config;
+
 public:
     ChessEngine();
     ~ChessEngine();
@@ -1043,7 +1151,14 @@ public:
 
     Move debug_search_with_tt(int max_depth, int max_time_ms);
 
+    void debug_print_config();
+
     std::vector<Move> get_legal_moves();
+
+    inline void load_config_from_file(const std::string& path) {
+        config.load_from_file(path);
+    }
+
 };
 
 }

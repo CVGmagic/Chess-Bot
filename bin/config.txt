@@ -1,0 +1,17 @@
+# Search tuning values
+lmr_depth_threshold 4 # Minimum depth for late move reduction.
+lmr_move_threshold 4 # Minimum move count before reducing quiet moves.
+max_extensions 4 # Maximum number of depth extensions in check.
+lmr_reduction 1 # Depth reduction applied to LMR searches.
+null_move_depth_threshold 3 # Minimum remaining depth for null-move pruning.
+null_move_reduction 2 # Depth reduction used in null-move search.
+
+# Evaluation tuning values
+bishop_pair_mg 10 # Middlegame bishop-pair bonus.
+bishop_pair_eg 20 # Endgame bishop-pair bonus.
+
+# Runtime / performance tuning values
+tt_size_mb 16 # Transposition table size in megabytes.
+search_check_interval 16384 # Nodes between time-checks during search.
+search_time_buffer_ms 15 # Safety margin subtracted from move time.
+min_search_time_ms 20 # Lower bound for per-move search time.

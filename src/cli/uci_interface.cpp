@@ -7,6 +7,7 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
+
 using namespace std;
 
 
@@ -27,6 +28,8 @@ enum GodotPieces{
     BLACK_QUEEN,
     BLACK_KING
 };
+
+
 
 
 int32_t fen_char_to_id(char c) {
@@ -322,6 +325,10 @@ extern "C" {
 }
 
 int main() {
+    engine.load_config_from_file("config.txt");
+
+    engine.debug_print_config();
+
     string line;
 
     while (getline(cin, line)) {

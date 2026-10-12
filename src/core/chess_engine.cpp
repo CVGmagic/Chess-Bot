@@ -32,7 +32,7 @@ ChessEngine::ChessEngine() {
     Zobrist::initialize();
 
     // Allocate transposition table memory
-    tt.resize(16); // TODO make this changable through config.yml
+    tt.resize(config.tt_size_mb);
 }
 
 
@@ -82,6 +82,24 @@ Move ChessEngine::debug_search_with_tt(int max_depth, int max_time_ms) {
     Move best_move = find_best_move(max_depth, max_time_ms);
     TT_DEBUG = false;
     return best_move;
+}
+
+
+void ChessEngine::debug_print_config() {
+    std::cerr << "=== ENGINE CONFIG CHECK ===" << std::endl;
+    std::cerr << "LMR Depth: " << config.lmr_depth_threshold << std::endl;
+    std::cerr << "LMR Moves: " << config.lmr_move_threshold << std::endl;
+    std::cerr << "Max Extensions: " << config.max_extensions << std::endl;
+    std::cerr << "LMR Reduction: " << config.lmr_reduction << std::endl;
+    std::cerr << "Null Move Depth Threshold: " << config.null_move_depth_threshold << std::endl;
+    std::cerr << "Null Move Reduction: " << config.null_move_reduction << std::endl;
+    std::cerr << "Bishop Pair MG: " << config.bishop_pair_mg << std::endl;
+    std::cerr << "Bishop Pair EG: " << config.bishop_pair_eg << std::endl;
+    std::cerr << "TT Size: " << config.tt_size_mb << std::endl;
+    std::cerr << "Search Check Interval: " << config.search_check_interval << std::endl;
+    std::cerr << "Search Time Buffer: " << config.search_time_buffer_ms << std::endl;
+    std::cerr << "Min Search Time: " << config.min_search_time_ms << std::endl;
+    std::cerr << "===========================" << std::endl;
 }
 
 
@@ -966,9 +984,8 @@ int ChessEngine::evaluate(const Board& board) {
 
     int bishop_score = 0;
 
-    // TODO Fine tune these values
-    static const int bishop_pair_mg = 10;
-    static const int bishop_pair_eg = 20;
+    const int bishop_pair_mg = config.bishop_pair_mg;
+    const int bishop_pair_eg = config.bishop_pair_eg;
 
     if (white_bishops >= 2) {
         bishop_score += (phase * bishop_pair_mg + (24 - phase) * bishop_pair_eg) / 24;
@@ -1030,8 +1047,8 @@ Move ChessEngine::find_best_move(int max_depth, int max_time_ms) {
         killer_moves[1][i] = Move(0, 0);
     }
 
-    int time_buffer = 15;
-    max_time = std::min(std::max(max_time_ms - time_buffer, 20), max_time_ms);
+    const int time_buffer = config.search_time_buffer_ms;
+    max_time = std::min(std::max(max_time_ms - time_buffer, config.min_search_time_ms), max_time_ms);
     start_time = std::chrono::steady_clock::now();
 
     Move best_move_overall;
@@ -1254,7 +1271,7 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
     int remaining_depth = depth - ply;
 
     // Check if time has run out
-    if (nodes_searched % 16384 == 0) { // TODO Tune this value
+    if (nodes_searched % config.search_check_interval == 0) {
         auto now = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
         
@@ -1305,7 +1322,7 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
     bool in_check = is_in_check(board, board.side_to_move);
 
     // Check extension
-    if (in_check && extensions < 4) { // TODO fine tune this constant
+    if (in_check && extensions < config.max_extensions) {
         depth++;
         extensions++;
     }
@@ -1318,7 +1335,7 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
     }
 
     // Null Move Pruning
-    if (remaining_depth >= 3 && !in_check && ply > 0) {
+    if (remaining_depth >= config.null_move_depth_threshold && !in_check && ply > 0) {
         // Check if we have any pieces (except pawns) left
         if ((board.occupancy[board.side_to_move] ^ board.bitboards[board.side_to_move][PAWN] ^ board.bitboards[board.side_to_move][KING]) > 0) {
             int static_eval = evaluate(board);
@@ -1327,11 +1344,10 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
                 Board null_board = board;
                 null_board.make_null_move();
 
-                // R is the reduction factor. 2 or 3 is industry standard.
-                int R = 2; 
+                int null_move_reduction = config.null_move_reduction;
 
                 // Search with a "Null Window" [-beta, -beta + 1] at reduced depth
-                int score = -search(null_board, ply + 1, depth - R, -beta, -beta + 1, extensions).first;
+                int score = -search(null_board, ply + 1, depth - null_move_reduction, -beta, -beta + 1, extensions).first;
   
                 if (search_aborted) {
                     return {0, Move(0, 0)};
@@ -1387,7 +1403,7 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
         bool gives_check = false;
 
         // Determine wether to do late move reduction
-        if (!pvNode && remaining_depth >= 4 && moves_searched > 4 && !in_check && !gives_check) {
+        if (!pvNode && remaining_depth >= config.lmr_depth_threshold && moves_searched > config.lmr_move_threshold && !in_check && !gives_check) {
             // Don't reduce captures
             if (!move.move.is_capture() && !move.move.is_promotion()) {
                 // Don't reduce killer moves
@@ -1399,7 +1415,7 @@ std::pair<int, Move> ChessEngine::search(const Board& board, int ply, int depth,
 
         // Late move reduction
         if (do_lmr) {
-            int reduction = 1; // TODO Fine tune parameter
+            const int reduction = config.lmr_reduction;
             // We search at reduced depth, and with a smaller window, because we only need to know if it's better than alpha
             score = -search(simulated_board, ply + 1, depth - reduction, -alpha - 1, -alpha, extensions).first;
             
